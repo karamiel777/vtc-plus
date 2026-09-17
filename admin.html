@@ -799,6 +799,20 @@ h2{font-size:38px}
     }
   });
 
+  // Passer une réservation à "Confirmée" la marque "Payée" par défaut (montant = tarif),
+  // sauf si un statut de paiement différent (partiel/crédit/non payé) a déjà été enregistré.
+  document.getElementById('m-status').addEventListener('change', function(){
+    if (this.value === 'confirmed'){
+      var paySel = document.getElementById('m-payment-status');
+      var amtField = document.getElementById('m-amount-paid');
+      if (paySel.value === 'unpaid' && (!amtField.value || parseFloat(amtField.value) === 0)){
+        var r = requests.find(function(x){ return x.id === managingId; });
+        paySel.value = 'paid';
+        amtField.value = r ? (r.fareAmount||0) : 0;
+      }
+    }
+  });
+
   function playSound(){
     try{
       const C=window.AudioContext||window.webkitAudioContext;
@@ -1126,7 +1140,19 @@ h2{font-size:38px}
         '.photo{max-width:220px; border-radius:4px; margin:16px 0;}' +
         '.brand{color:#a3803e; font-weight:bold; font-size:13px; letter-spacing:.04em;}' +
         '.footer{margin-top:40px; font-size:10.5px; color:#aaa; border-top:1px solid #eee; padding-top:10px;}' +
-        '@media print{ body{padding:16px;} }' +
+        '.section{margin-top:26px;}' +
+        '.section h2{font-family:Arial,Helvetica,sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:#a3803e; border-bottom:2px solid #eee1c8; padding-bottom:6px; margin-bottom:4px;}' +
+        '.stat-grid{display:flex; gap:10px; flex-wrap:wrap; margin:18px 0 8px;}' +
+        '.stat-box{flex:1; min-width:150px; background:#f7f5f0; border:1px solid #e6e1d6; border-radius:6px; padding:14px 16px; page-break-inside:avoid;}' +
+        '.stat-box .lbl{font-size:10px; color:#8a857a; text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px;}' +
+        '.stat-box .val{font-size:19px; font-weight:bold; color:#18161a;}' +
+        '.stat-box.positive .val{color:#2f8a5c;}' +
+        '.stat-box.negative .val{color:#c94141;}' +
+        'table.mini{width:100%; border-collapse:collapse;}' +
+        'table.mini td{padding:7px 6px; font-size:12.5px; border-bottom:1px solid #efece3; vertical-align:top;}' +
+        'table.mini td:first-child{color:#8a857a; width:auto;}' +
+        'table.mini td:last-child{text-align:right; font-weight:600; color:#18161a; width:auto;}' +
+        '@media print{ body{padding:16px;} .stat-box{break-inside:avoid;} }' +
       '</style></head><body>' +
       '<div class="brand">VTC PLUS</div>' + bodyHtml +
       '<div class="footer">Généré le ' + new Date().toLocaleDateString('fr-FR') + ' à ' + new Date().toLocaleTimeString('fr-FR') + '</div>' +
@@ -1687,28 +1713,58 @@ h2{font-size:38px}
   window.printRecap = function(){
     var d = window._lastRecapData;
     if (!d){ alert('Veuillez patienter le temps du chargement du récapitulatif.'); return; }
-    var rows = [
-      ['Période', isoToDisplay(d.range.from) + ' au ' + isoToDisplay(d.range.to)],
-      ['Réservations', String(d.periodReservations.length)],
-      ['CA prévu', fmtAr(d.caPrevu)],
-      ['Montant reçu', fmtAr(d.totalRecu)],
-      ['Reste à recevoir', fmtAr(d.resteARecevoir)],
-      ['Total dépenses', fmtAr(d.totalDepenses)],
-      ['Bénéfice réel', fmtAr(d.beneficeReel)],
+
+    function box(label, value, cls){ return '<div class="stat-box'+(cls?(' '+cls):'')+'"><div class="lbl">'+label+'</div><div class="val">'+value+'</div></div>'; }
+    function miniTable(rows){ return '<table class="mini">' + rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'; }).join('') + '</table>'; }
+
+    var soldeEspeces = d.entreeCash - d.sortieCash;
+    var soldeMM = d.entreeMM - d.sortieMM;
+
+    var html = '<h1>Récapitulatif financier</h1><div class="sub">VTC PLUS — '+isoToDisplay(d.range.from)+' au '+isoToDisplay(d.range.to)+'</div>';
+
+    html += '<div class="stat-grid">' +
+      box('CA prévu', fmtAr(d.caPrevu)) +
+      box('Montant reçu', fmtAr(d.totalRecu)) +
+      box('Reste à recevoir', fmtAr(d.resteARecevoir), d.resteARecevoir>0?'negative':'positive') +
+      box('Bénéfice réel', fmtAr(d.beneficeReel), d.beneficeReel>=0?'positive':'negative') +
+    '</div>';
+
+    html += '<div class="section"><h2>Réservations</h2>' + miniTable([
+      ['Nombre de réservations', String(d.periodReservations.length)],
+      ["Chiffre d'affaires prévu", fmtAr(d.caPrevu)],
+      ['Montant réellement reçu', fmtAr(d.totalRecu)],
+      ['Reste à recevoir', fmtAr(d.resteARecevoir)]
+    ]) + '</div>';
+
+    html += '<div class="section"><h2>Dépenses</h2>' + miniTable([
+      ['Total des dépenses', fmtAr(d.totalDepenses)]
+    ]) + '</div>';
+
+    html += '<div class="stat-grid">' +
+      box('Solde espèces', fmtAr(soldeEspeces), soldeEspeces>=0?'positive':'negative') +
+      box('Solde mobile money', fmtAr(soldeMM), soldeMM>=0?'positive':'negative') +
+    '</div>';
+
+    html += '<div class="section"><h2>Trésorerie — Espèces</h2>' + miniTable([
       ['Espèces reçues', fmtAr(d.entreeCash)],
       ['Espèces dépensées', fmtAr(d.sortieCash)],
-      ['Solde espèces', fmtAr(d.entreeCash - d.sortieCash)],
+      ['Solde espèces', fmtAr(soldeEspeces)]
+    ]) + '</div>';
+
+    html += '<div class="section"><h2>Trésorerie — Mobile Money</h2>' + miniTable([
       ['Mobile money reçu', fmtAr(d.entreeMM)],
       ['Mobile money dépensé', fmtAr(d.sortieMM)],
-      ['Solde mobile money', fmtAr(d.entreeMM - d.sortieMM)],
+      ['Solde mobile money', fmtAr(soldeMM)]
+    ]) + '</div>';
+
+    html += '<div class="section"><h2>Flotte & chauffeurs</h2>' + miniTable([
       ['Véhicules disponibles', String(d.vehCounts.disponible||0)],
       ['Véhicules en course', String(d.vehCounts.en_course||0)],
       ['Véhicules en maintenance', String(d.vehCounts.maintenance||0)],
       ['Véhicules hors service', String(d.vehCounts.hors_service||0)],
       ['Chauffeurs', String(drivers.length)]
-    ];
-    var html = '<h1>Récapitulatif financier</h1><div class="sub">VTC PLUS — '+isoToDisplay(d.range.from)+' au '+isoToDisplay(d.range.to)+'</div>' +
-      '<table>' + rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'; }).join('') + '</table>';
+    ]) + '</div>';
+
     printWindow('Récapitulatif — ' + isoToDisplay(d.range.from) + ' au ' + isoToDisplay(d.range.to), html);
   };
 
@@ -1870,6 +1926,8 @@ h2{font-size:38px}
     document.getElementById("add-error").style.display = "none";
     fillVehicleSelect(document.getElementById('a-vehicle'), '');
     setServiceType('course');
+    addAmountPaidTouched = false;
+    syncAddPaymentDefaults();
     document.getElementById("add-modal").classList.add("show");
   };
   window.closeAddModal = function(){ document.getElementById("add-modal").classList.remove("show"); };
@@ -1881,6 +1939,7 @@ h2{font-size:38px}
       if (!isNaN(blocks) && blocks > 0){
         document.getElementById('a-fare').value = blocks * MISE_A_DISPO_RATES[tier];
       }
+      syncAddAmountPaid();
       return;
     }
     const km = parseFloat(document.getElementById("a-km").value);
@@ -1888,16 +1947,31 @@ h2{font-size:38px}
       const fare = Math.max(MIN_FARE[tier], Math.round(km * RATES[tier] / 100) * 100);
       document.getElementById("a-fare").value = fare;
     }
+    syncAddAmountPaid();
   }
   document.getElementById("a-km").addEventListener("input", recalcFare);
   document.getElementById("a-blocks").addEventListener("input", recalcFare);
   document.getElementById("a-tier").addEventListener("change", recalcFare);
-  document.getElementById('a-payment-status').addEventListener('change', function(){
-    if (this.value === 'paid'){
-      var amtField = document.getElementById('a-amount-paid');
-      if (!amtField.value) amtField.value = document.getElementById('a-fare').value || 0;
-    }
-  });
+
+  // Statut de paiement synchronisé automatiquement avec le statut de la réservation :
+  // "Confirmée" ⇒ "Payé" (montant = tarif) par défaut, sauf si l'utilisatrice modifie
+  // elle-même le montant encaissé (dans ce cas on respecte son choix, ex. paiement partiel).
+  var addAmountPaidTouched = false;
+  document.getElementById('a-amount-paid').addEventListener('input', function(){ addAmountPaidTouched = true; });
+  document.getElementById('a-payment-status').addEventListener('change', function(){ syncAddAmountPaid(); });
+  document.getElementById('a-status').addEventListener('change', syncAddPaymentDefaults);
+
+  function syncAddPaymentDefaults(){
+    var status = document.getElementById('a-status').value;
+    document.getElementById('a-payment-status').value = (status === 'confirmed') ? 'paid' : 'unpaid';
+    syncAddAmountPaid();
+  }
+  function syncAddAmountPaid(){
+    if (addAmountPaidTouched) return;
+    var amtField = document.getElementById('a-amount-paid');
+    amtField.value = (document.getElementById('a-payment-status').value === 'paid')
+      ? (document.getElementById('a-fare').value || 0) : '';
+  }
 
   document.getElementById("add-form").addEventListener("submit", async (e)=>{
     e.preventDefault();
