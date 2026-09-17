@@ -149,16 +149,14 @@
       <textarea id="f-message" rows="3" placeholder="Bagages, arrêt supplémentaire, préférence…" class="form-input" style="resize:vertical;"></textarea>
     </div>
 
-    <div id="estimate-box" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; flex-direction:column; gap:4px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted);">
-        <span id="estimate-detail"></span>
+    <div id="estimate-box" style="display:none; padding:16px 18px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="font-size:13px; color:var(--muted);">Total estimé</div>
+        <div id="estimate-detail" style="font-size:11.5px; color:var(--muted); margin-top:2px;"></div>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:baseline;">
-        <span style="font-size:13.5px; color:var(--muted);">Total estimé</span>
-        <span id="estimate-text" style="font-family:'Cormorant Garamond', serif; font-size:26px; color:var(--gold-bright);"></span>
-      </div>
+      <span id="estimate-text" style="font-family:'Cormorant Garamond', serif; font-size:28px; color:var(--gold-bright);"></span>
     </div>
-    <div style="font-size:12px; color:var(--muted); line-height:1.6; margin-top:-8px;">Estimation indicative — le tarif exact dépend du trajet réel et sera confirmé avant le départ.</div>
+    <div style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:-8px;">Estimation indicative, confirmée avant le départ.</div>
 
     <a id="wa-submit" href="#" target="_blank" rel="noopener" class="btn btn-gold" style="justify-content:center; margin-top:8px;" onclick="saveClientData()">Envoyer la demande sur WhatsApp</a>
   </div>
@@ -377,6 +375,8 @@
         box.innerHTML = '';
         return;
       }
+      box.innerHTML = '<div class="suggestion-item" style="color:var(--muted);">Recherche…</div>';
+      box.classList.add('show');
       debounce(fieldId, function(){
         fetchSuggestions(query).then(function(results){
           box.innerHTML = '';
@@ -398,7 +398,7 @@
           });
           box.classList.add('show');
         });
-      }, 350);
+      }, 250);
     });
 
     document.addEventListener('click', function(e){
@@ -550,14 +550,10 @@
     var text = document.getElementById('estimate-text');
     if (!isNaN(km) && km > 0){
       var rate = RATES[selectedTier];
-      var raw = km * rate;
-      var fare = Math.max(MIN_FARE[selectedTier], Math.round(raw / 100) * 100);
+      var fare = Math.max(MIN_FARE[selectedTier], Math.round(km * rate / 100) * 100);
       var tierLabel = selectedTier === 'premium' ? 'Premium' : 'Comfort';
-      if (fare > raw){
-        detail.textContent = tierLabel + ' — tarif minimum appliqué (' + km.toFixed(1) + ' km × ' + rate.toLocaleString('fr-FR') + ' Ar = ' + Math.round(raw).toLocaleString('fr-FR') + ' Ar, sous le minimum)';
-      } else {
-        detail.textContent = tierLabel + ' — ' + km.toFixed(1) + ' km × ' + rate.toLocaleString('fr-FR') + ' Ar/km';
-      }
+      var isMin = fare === MIN_FARE[selectedTier] && km < 5;
+      detail.textContent = tierLabel + (isMin ? ' · course minimum (5 km)' : ' · ' + km.toFixed(1) + ' km');
       text.textContent = fare.toLocaleString('fr-FR') + ' Ar';
       box.style.display = 'flex';
     } else {
