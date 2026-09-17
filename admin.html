@@ -72,6 +72,18 @@ h2{font-size:38px}
 .actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}.actions button{padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text);font-size:11px}
 .actions .confirm{background:var(--gold);border-color:var(--gold);color:#141112;font-weight:700}
 .actions .danger:hover{border-color:var(--red);color:#ef9999}
+.vcard{background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:20px; display:flex; flex-direction:column; gap:10px;}
+.vcard-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px;}
+.vstatus{display:inline-block; padding:5px 10px; border-radius:2px; font-size:10.5px; font-weight:700; letter-spacing:.02em;}
+.vstatus.disponible{background:rgba(101,184,137,.14); color:#8ed3aa}
+.vstatus.en_course{background:rgba(201,164,92,.16); color:var(--gold2)}
+.vstatus.maintenance{background:rgba(217,154,69,.14); color:#e5b36d}
+.vstatus.hors_service{background:rgba(217,87,87,.14); color:#ef9999}
+.valert{display:inline-block; padding:4px 9px; border-radius:2px; font-size:10.5px; font-weight:700; margin-right:6px; margin-top:6px;}
+.valert.warn{background:rgba(217,154,69,.14); color:#e5b36d}
+.valert.due{background:rgba(217,87,87,.14); color:#ef9999}
+.vcard-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; font-size:12.5px; color:var(--muted);}
+.vcard-grid strong{color:var(--text); display:block; font-size:14px;}
 .empty{text-align:center;padding:55px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px}
 .loading{text-align:center;padding:55px;color:var(--muted)}
 .month-nav{display:flex;align-items:center;gap:16px;margin-bottom:22px}
@@ -156,6 +168,7 @@ h2{font-size:38px}
   <div class="main-tabs">
     <button class="main-tab active" data-tab="reservations">Réservations</button>
     <button class="main-tab" data-tab="stats">Statistiques</button>
+    <button class="main-tab" data-tab="fleet">Flotte</button>
   </div>
 
   <!-- RESERVATIONS VIEW -->
@@ -202,8 +215,158 @@ h2{font-size:38px}
       <div id="day-detail-list"></div>
     </div>
   </div>
+
+  <!-- FLEET VIEW -->
+  <div id="view-fleet" class="view">
+    <div class="top" style="margin-bottom:24px;">
+      <h2 style="font-size:28px;">Véhicules</h2>
+      <button class="btn btn-gold" onclick="openVehicleModal()">+ Ajouter un véhicule</button>
+    </div>
+    <div id="vehicles-list" class="requests" style="margin-bottom:48px;"><div class="loading">Chargement…</div></div>
+
+    <div class="top" style="margin-bottom:24px;">
+      <h2 style="font-size:28px;">Chauffeurs</h2>
+      <button class="btn btn-gold" onclick="openDriverModal()">+ Ajouter un chauffeur</button>
+    </div>
+    <div id="drivers-list" class="requests"><div class="loading">Chargement…</div></div>
+  </div>
 </main>
 </section>
+
+<!-- VEHICLE MODAL -->
+<div id="vehicle-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="vehicle-modal-title">Ajouter un véhicule</h3>
+    <div id="vehicle-error" class="error"></div>
+    <form id="vehicle-form">
+      <div class="grid2">
+        <div class="field"><label>Marque</label><input id="v-brand" required placeholder="Ex : Haval"></div>
+        <div class="field"><label>Modèle</label><input id="v-model" required placeholder="Ex : H6"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Plaque d'immatriculation</label><input id="v-plate" required placeholder="Ex : 1234 WWW"></div>
+        <div class="field"><label>Couleur</label><input id="v-color" placeholder="Ex : Noir"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Numéro de châssis</label><input id="v-chassis" placeholder="Optionnel"></div>
+        <div class="field">
+          <label>Formule</label>
+          <select id="v-tier"><option value="Comfort">Comfort</option><option value="Premium">Premium</option></select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Statut</label>
+          <select id="v-status">
+            <option value="disponible">Disponible</option>
+            <option value="en_course">En course</option>
+            <option value="maintenance">En maintenance</option>
+            <option value="hors_service">Hors service</option>
+          </select>
+        </div>
+        <div class="field"><label>Chauffeur attitré</label><select id="v-driver"><option value="">— Aucun —</option></select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Kilométrage actuel</label><input id="v-km" type="number" min="0" required></div>
+        <div class="field"><label>Km au dernier entretien</label><input id="v-last-maintenance-km" type="number" min="0" placeholder="Ex : 0"></div>
+      </div>
+      <div style="font-size:11.5px; color:var(--muted); margin:-8px 0 18px;">Entretien tous les 7 000 km — la prochaine échéance est calculée automatiquement.</div>
+      <div class="grid2">
+        <div class="field"><label>Expiration assurance</label><input id="v-insurance" type="date"></div>
+        <div class="field"><label>Expiration carte grise</label><input id="v-carte-grise" type="date"></div>
+      </div>
+      <div class="field"><label>Expiration visite technique</label><input id="v-visite" type="date"></div>
+      <div class="field"><label>Photo du véhicule</label><input id="v-photo" type="file" accept="image/*"><img id="v-photo-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Notes</label><textarea id="v-notes" rows="2" placeholder="Optionnel"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-dark" onclick="closeVehicleModal()">Annuler</button>
+        <button type="submit" class="btn btn-gold" id="vehicle-submit-btn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- DRIVER MODAL -->
+<div id="driver-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="driver-modal-title">Ajouter un chauffeur</h3>
+    <div id="driver-error" class="error"></div>
+    <form id="driver-form">
+      <div class="field"><label>Nom complet</label><input id="d-name" required></div>
+      <div class="grid2">
+        <div class="field"><label>Téléphone</label><input id="d-phone" required></div>
+        <div class="field"><label>Véhicule attitré</label><select id="d-vehicle"><option value="">— Aucun —</option></select></div>
+      </div>
+      <div class="field"><label>Adresse</label><input id="d-address" placeholder="Optionnel"></div>
+      <div class="field"><label>Photo du permis</label><input id="d-license" type="file" accept="image/*"><img id="d-license-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Notes</label><textarea id="d-notes" rows="2" placeholder="Optionnel"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-dark" onclick="closeDriverModal()">Annuler</button>
+        <button type="submit" class="btn btn-gold" id="driver-submit-btn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- VEHICLE HISTORY MODAL (fuel / maintenance / incidents) -->
+<div id="history-modal" class="modal-overlay">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="history-title">Historique du véhicule</h3>
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button type="button" class="filter active" id="htab-fuel" onclick="setHistoryTab('fuel')">⛽ Carburant</button>
+      <button type="button" class="filter" id="htab-maint" onclick="setHistoryTab('maint')">🔧 Entretien</button>
+      <button type="button" class="filter" id="htab-incident" onclick="setHistoryTab('incident')">⚠ Incidents</button>
+    </div>
+
+    <div id="hpanel-fuel">
+      <div id="fuel-total" style="font-size:13px; color:var(--muted); margin-bottom:14px;"></div>
+      <form id="fuel-form" class="grid2" style="margin-bottom:18px;">
+        <div class="field"><label>Date</label><input id="f-fuel-date" type="date" required></div>
+        <div class="field"><label>Coût (Ar)</label><input id="f-fuel-cost" type="number" min="0" required></div>
+        <div class="field"><label>Litres</label><input id="f-fuel-liters" type="number" min="0" step="0.1"></div>
+        <div class="field"><label>Km au plein</label><input id="f-fuel-km" type="number" min="0"></div>
+        <div class="field" style="grid-column:1/3;"><button type="submit" class="btn btn-gold" style="width:100%;">+ Ajouter un plein</button></div>
+      </form>
+      <div id="fuel-list" class="day-detail" style="padding:16px;"></div>
+    </div>
+
+    <div id="hpanel-maint" style="display:none;">
+      <div id="maint-total" style="font-size:13px; color:var(--muted); margin-bottom:14px;"></div>
+      <form id="maint-form" style="margin-bottom:18px;">
+        <div class="grid2">
+          <div class="field"><label>Date</label><input id="f-maint-date" type="date" required></div>
+          <div class="field"><label>Coût (Ar)</label><input id="f-maint-cost" type="number" min="0" required></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Km au moment de l'entretien</label><input id="f-maint-km" type="number" min="0" required></div>
+          <div class="field"><label>Type</label><input id="f-maint-type" placeholder="Ex : Vidange, freins…" required></div>
+        </div>
+        <div class="field"><label>Garage</label><input id="f-maint-garage" placeholder="Optionnel"></div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); margin-bottom:14px;">
+          <input type="checkbox" id="f-maint-update-km" checked style="width:auto;"> Mettre à jour le km du dernier entretien sur la fiche véhicule
+        </label>
+        <button type="submit" class="btn btn-gold" style="width:100%;">+ Ajouter un entretien</button>
+      </form>
+      <div id="maint-list" class="day-detail" style="padding:16px;"></div>
+    </div>
+
+    <div id="hpanel-incident" style="display:none;">
+      <form id="incident-form" style="margin-bottom:18px;">
+        <div class="grid2">
+          <div class="field"><label>Date</label><input id="f-inc-date" type="date" required></div>
+          <div class="field"><label>Photo (optionnel)</label><input id="f-inc-photo" type="file" accept="image/*"></div>
+        </div>
+        <div class="field"><label>Description</label><textarea id="f-inc-desc" rows="2" placeholder="Ex : rayure aile arrière droite" required></textarea></div>
+        <button type="submit" class="btn btn-gold" style="width:100%;">+ Signaler un incident</button>
+      </form>
+      <div id="incident-list" class="day-detail" style="padding:16px;"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-dark" onclick="closeHistoryModal()" style="width:100%;">Fermer</button>
+    </div>
+  </div>
+</div>
 
 <!-- ADD RESERVATION MODAL -->
 <div id="add-modal" class="modal-overlay">
@@ -215,10 +378,28 @@ h2{font-size:38px}
         <div class="field"><label>Nom du client</label><input id="a-name" required></div>
         <div class="field"><label>Téléphone</label><input id="a-phone" required></div>
       </div>
-      <div class="grid2">
-        <div class="field"><label>Lieu de départ</label><input id="a-pickup" required></div>
-        <div class="field"><label>Destination</label><input id="a-dest" required></div>
+
+      <div class="field">
+        <label>Type de prestation</label>
+        <div style="display:flex; gap:12px;">
+          <button type="button" id="a-type-course" class="filter active" style="flex:1;" onclick="setServiceType('course')">Course</button>
+          <button type="button" id="a-type-disp" class="filter" style="flex:1;" onclick="setServiceType('disposition')">Mise à disposition (5h)</button>
+        </div>
       </div>
+
+      <div id="a-course-fields">
+        <div class="grid2">
+          <div class="field"><label>Lieu de départ</label><input id="a-pickup"></div>
+          <div class="field"><label>Destination</label><input id="a-dest"></div>
+        </div>
+        <div class="field"><label>Distance (km)</label><input id="a-km" type="number" min="0" step="0.1"></div>
+      </div>
+
+      <div id="a-disp-fields" style="display:none;">
+        <div class="field"><label>Lieu de prise en charge</label><input id="a-disp-pickup"></div>
+        <div class="field"><label>Nombre de blocs de 5h</label><input id="a-blocks" type="number" min="1" step="1" value="1"></div>
+      </div>
+
       <div class="grid2">
         <div class="field"><label>Date</label><input id="a-date" type="date" required></div>
         <div class="field"><label>Heure (optionnel)</label><input id="a-time" type="time"></div>
@@ -228,7 +409,7 @@ h2{font-size:38px}
           <label>Formule</label>
           <select id="a-tier"><option value="Comfort">Comfort</option><option value="Premium">Premium</option></select>
         </div>
-        <div class="field"><label>Distance (km)</label><input id="a-km" type="number" min="0" step="0.1" required></div>
+        <div class="field"><label>Montant (Ar) — calculé automatiquement, modifiable</label><input id="a-fare" type="number" min="0"></div>
       </div>
       <div class="grid2">
         <div class="field">
@@ -248,7 +429,19 @@ h2{font-size:38px}
           </select>
         </div>
       </div>
-      <div class="field"><label>Montant (Ar) — calculé automatiquement, modifiable</label><input id="a-fare" type="number" min="0"></div>
+      <div class="grid2">
+        <div class="field"><label>Véhicule assigné</label><select id="a-vehicle"><option value="">— Aucun —</option></select></div>
+        <div class="field">
+          <label>Mode de paiement</label>
+          <select id="a-payment">
+            <option value="">— Non précisé —</option>
+            <option value="mobile_money">Mobile money (Orange/Telma)</option>
+            <option value="cash_driver">Espèces (chauffeur)</option>
+            <option value="paid_by_direction">Payé par la direction</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Notes internes</label><textarea id="a-notes" rows="2" placeholder="Ex : véhicule, marque, plaque, remarques…"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeAddModal()">Annuler</button>
         <button type="submit" class="btn btn-gold" id="add-submit-btn">Ajouter la course</button>
@@ -257,8 +450,42 @@ h2{font-size:38px}
   </div>
 </div>
 
+<!-- MANAGE RESERVATION MODAL -->
+<div id="manage-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Gérer la réservation</h3>
+    <div id="manage-error" class="error"></div>
+    <div id="manage-summary" style="font-size:13.5px; color:var(--muted); margin-bottom:18px; padding:12px 14px; background:var(--surface2); border-radius:3px;"></div>
+    <form id="manage-form">
+      <div class="field"><label>Véhicule assigné</label><select id="m-vehicle"><option value="">— Aucun —</option></select></div>
+      <div class="field">
+        <label>Mode de paiement</label>
+        <select id="m-payment">
+          <option value="">— Non précisé —</option>
+          <option value="mobile_money">Mobile money (Orange/Telma)</option>
+          <option value="cash_driver">Espèces (chauffeur)</option>
+          <option value="paid_by_direction">Payé par la direction</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Statut</label>
+        <select id="m-status">
+          <option value="new">Nouvelle</option>
+          <option value="pending">En attente</option>
+          <option value="confirmed">Confirmée</option>
+        </select>
+      </div>
+      <div class="field"><label>Notes internes</label><textarea id="m-notes" rows="3" placeholder="Ex : véhicule, marque, plaque, remarques…"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-dark" onclick="closeManageModal()">Annuler</button>
+        <button type="submit" class="btn btn-gold" id="manage-submit-btn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
-  import { app, db } from "./firebase-config.js";
+  import { app, db, storage } from "./firebase-config.js";
   import {
     getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
@@ -266,8 +493,13 @@ h2{font-size:38px}
     collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc,
     getDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+  import {
+    ref as storageRef, uploadBytes, getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-storage.js";
 
   const auth = getAuth(app);
+  const MISE_A_DISPO_RATES = { Comfort: 120000, Premium: 150000 };
+  const PAYMENT_LABEL = { mobile_money:'Mobile money', cash_driver:'Espèces (chauffeur)', paid_by_direction:'Payé par la direction' };
   const RATES = { Comfort: 4000, Premium: 5000 };
   const MIN_FARE = { Comfort: 20000, Premium: 25000 };
   const SOURCE_LABEL = { site:"Site web", whatsapp:"WhatsApp", phone:"Téléphone" };
@@ -301,20 +533,24 @@ h2{font-size:38px}
     const list=requests.filter(r=>activeFilter==="all" || r.status===activeFilter);
     const box=document.getElementById("requests");
     if(!list.length){box.innerHTML='<div class="empty">Aucune réservation dans cette catégorie.</div>';return;}
-    box.innerHTML=list.map(r=>`
+    box.innerHTML=list.map(r=>{
+      const veh = vehicles.find(v=>v.id===r.assignedVehicleId);
+      return `
       <div class="request ${r.status==="new"?"new":""}">
         <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small></div>
-        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}</div>
+        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
         <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
         <div><small>MONTANT</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
         <div class="actions">
           <button onclick="callClient('${r.phone}')">📞</button>
           <button onclick="whatsapp('${r.phone}')">💬</button>
+          <button onclick="openManageModal('${r.id}')">⚙</button>
           ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest('${r.id}')">✓</button>`:""}
           ${isDirector?`<button class="danger" onclick="deleteRequest('${r.id}')" title="Supprimer">🗑</button>`:""}
         </div>
-      </div>`).join("");
+      </div>`;
+    }).join("");
   }
 
   window.confirmRequest = async function(id){
@@ -328,6 +564,44 @@ h2{font-size:38px}
   };
   window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
   window.whatsapp = function(phone){ window.open("https://wa.me/"+phone.replace(/\D/g,""),"_blank"); };
+
+  // ---------- Manage reservation (vehicle / payment / notes / status) ----------
+  var managingId = null;
+  window.openManageModal = function(id){
+    var r = requests.find(function(x){ return x.id === id; });
+    if (!r) return;
+    managingId = id;
+    document.getElementById('manage-summary').innerHTML = '<strong style="color:var(--text);">'+r.name+'</strong> — '+r.pickup+' → '+r.dest+'<br>'+isoToDisplay(r.date)+(r.time?' à '+r.time:'')+' · '+r.tier+' · '+r.estimate;
+    fillVehicleSelect(document.getElementById('m-vehicle'), r.assignedVehicleId||'');
+    document.getElementById('m-payment').value = r.paymentMethod || '';
+    document.getElementById('m-status').value = r.status || 'new';
+    document.getElementById('m-notes').value = r.notes || '';
+    document.getElementById('manage-error').style.display = 'none';
+    document.getElementById('manage-modal').classList.add('show');
+  };
+  window.closeManageModal = function(){ document.getElementById('manage-modal').classList.remove('show'); };
+
+  document.getElementById('manage-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!managingId) return;
+    var errBox = document.getElementById('manage-error'); errBox.style.display = 'none';
+    var btn = document.getElementById('manage-submit-btn');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    try{
+      await updateDoc(doc(db,'reservations',managingId), {
+        assignedVehicleId: document.getElementById('m-vehicle').value || null,
+        paymentMethod: document.getElementById('m-payment').value || null,
+        status: document.getElementById('m-status').value,
+        notes: document.getElementById('m-notes').value.trim()
+      });
+      closeManageModal();
+    }catch(err){
+      console.error(err);
+      errBox.textContent = "Impossible d'enregistrer ces modifications pour le moment.";
+      errBox.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  });
 
   function playSound(){
     try{
@@ -358,8 +632,393 @@ h2{font-size:38px}
     const tab=b.dataset.tab;
     document.getElementById("view-reservations").classList.toggle("active", tab==="reservations");
     document.getElementById("view-stats").classList.toggle("active", tab==="stats");
+    document.getElementById("view-fleet").classList.toggle("active", tab==="fleet");
     if(tab==="stats") renderStats();
   }));
+
+  // ---------- Fleet: vehicles + drivers ----------
+  var vehicles = [];
+  var drivers = [];
+  var vehiclesUnsub = null, driversUnsub = null;
+  var editingVehicleId = null, editingDriverId = null;
+  var MAINTENANCE_INTERVAL_KM = 7000;
+
+  function daysUntil(dateStr){
+    if (!dateStr) return null;
+    var target = new Date(dateStr + 'T00:00:00');
+    var now = new Date(); now.setHours(0,0,0,0);
+    return Math.round((target - now) / 86400000);
+  }
+
+  function docAlertBadge(label, dateStr){
+    var d = daysUntil(dateStr);
+    if (d === null) return '';
+    if (d < 0) return '<span class="valert due">' + label + ' expirée</span>';
+    if (d <= 15) return '<span class="valert due">' + label + ' — ' + d + 'j</span>';
+    if (d <= 30) return '<span class="valert warn">' + label + ' — ' + d + 'j</span>';
+    return '';
+  }
+
+  function vehicleLabel(v){ return v.brand + ' ' + v.model + ' — ' + v.plate; }
+
+  function fillDriverSelect(sel, selectedId){
+    sel.innerHTML = '<option value="">— Aucun —</option>' + drivers.map(function(d){
+      return '<option value="'+d.id+'"'+(d.id===selectedId?' selected':'')+'>'+d.name+'</option>';
+    }).join('');
+  }
+  function fillVehicleSelect(sel, selectedId){
+    sel.innerHTML = '<option value="">— Aucun —</option>' + vehicles.map(function(v){
+      return '<option value="'+v.id+'"'+(v.id===selectedId?' selected':'')+'>'+vehicleLabel(v)+'</option>';
+    }).join('');
+  }
+
+  function renderVehicles(){
+    var box = document.getElementById('vehicles-list');
+    if (!vehicles.length){ box.innerHTML = '<div class="empty">Aucun véhicule enregistré.</div>'; return; }
+    box.innerHTML = vehicles.map(function(v){
+      var nextKm = (v.lastMaintenanceKm||0) + MAINTENANCE_INTERVAL_KM;
+      var kmLeft = nextKm - (v.km||0);
+      var maintAlert = '';
+      if (kmLeft <= 0) maintAlert = '<span class="valert due">Entretien dépassé (' + Math.abs(kmLeft) + ' km)</span>';
+      else if (kmLeft <= 500) maintAlert = '<span class="valert warn">Entretien dans ' + kmLeft + ' km</span>';
+      var driver = drivers.find(function(d){ return d.id === v.assignedDriverId; });
+      var alerts = maintAlert + docAlertBadge('Assurance', v.insuranceExpiry) + docAlertBadge('Carte grise', v.carteGriseExpiry) + docAlertBadge('Visite technique', v.visiteExpiry);
+      return '<div class="vcard">' +
+        '<div class="vcard-top">' +
+          (v.photoUrl ? '<img src="'+v.photoUrl+'" style="width:64px; height:64px; object-fit:cover; border-radius:3px; margin-right:12px;">' : '') +
+          '<div style="flex:1;"><strong style="font-size:17px;">' + v.brand + ' ' + v.model + '</strong><div style="color:var(--muted); font-size:12.5px;">' + v.plate + ' · ' + (v.tier||'Comfort') + (v.color ? ' · ' + v.color : '') + '</div></div>' +
+          '<span class="vstatus ' + v.status + '">' + vstatusLabel(v.status) + '</span>' +
+        '</div>' +
+        '<div class="vcard-grid">' +
+          '<div>Kilométrage<strong>' + (v.km||0).toLocaleString('fr-FR') + ' km</strong></div>' +
+          '<div>Chauffeur<strong>' + (driver ? driver.name : '—') + '</strong></div>' +
+          '<div>Prochain entretien<strong>' + nextKm.toLocaleString('fr-FR') + ' km</strong></div>' +
+        '</div>' +
+        (alerts ? '<div>' + alerts + '</div>' : '') +
+        (v.notes ? '<div style="font-size:12.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:10px;">' + v.notes + '</div>' : '') +
+        '<div class="actions" style="justify-content:flex-start;">' +
+          '<button onclick="editVehicle(\'' + v.id + '\')">✎ Modifier</button>' +
+          '<button onclick="openHistoryModal(\'' + v.id + '\')">🗂 Historique</button>' +
+          (isDirector ? '<button class="danger" onclick="deleteVehicle(\'' + v.id + '\')">🗑</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  function vstatusLabel(s){
+    return s==='disponible'?'Disponible':s==='en_course'?'En course':s==='maintenance'?'En maintenance':'Hors service';
+  }
+
+  function renderDrivers(){
+    var box = document.getElementById('drivers-list');
+    if (!drivers.length){ box.innerHTML = '<div class="empty">Aucun chauffeur enregistré.</div>'; return; }
+    box.innerHTML = drivers.map(function(d){
+      var vehicle = vehicles.find(function(v){ return v.id === d.assignedVehicleId; });
+      return '<div class="vcard">' +
+        '<div class="vcard-top">' +
+          (d.licensePhotoUrl ? '<img src="'+d.licensePhotoUrl+'" style="width:64px; height:64px; object-fit:cover; border-radius:3px; margin-right:12px;">' : '') +
+          '<div><strong style="font-size:17px;">' + d.name + '</strong><div style="color:var(--muted); font-size:12.5px;">' + d.phone + (d.address ? ' · ' + d.address : '') + '</div></div>' +
+        '</div>' +
+        '<div style="font-size:13px; color:var(--muted);">Véhicule attitré : <strong style="color:var(--text);">' + (vehicle ? vehicleLabel(vehicle) : '—') + '</strong></div>' +
+        (d.notes ? '<div style="font-size:12.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:10px;">' + d.notes + '</div>' : '') +
+        '<div class="actions" style="justify-content:flex-start;">' +
+          '<button onclick="editDriver(\'' + d.id + '\')">✎ Modifier</button>' +
+          (isDirector ? '<button class="danger" onclick="deleteDriver(\'' + d.id + '\')">🗑</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function startFleetListeners(){
+    vehiclesUnsub = onSnapshot(collection(db,'vehicles'), function(snap){
+      vehicles = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderVehicles(); renderDrivers();
+    });
+    driversUnsub = onSnapshot(collection(db,'drivers'), function(snap){
+      drivers = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderVehicles(); renderDrivers();
+    });
+  }
+
+  window.openVehicleModal = function(){
+    editingVehicleId = null;
+    document.getElementById('vehicle-modal-title').textContent = 'Ajouter un véhicule';
+    document.getElementById('vehicle-form').reset();
+    document.getElementById('vehicle-error').style.display = 'none';
+    fillDriverSelect(document.getElementById('v-driver'), '');
+    document.getElementById('vehicle-modal').classList.add('show');
+  };
+  window.closeVehicleModal = function(){ document.getElementById('vehicle-modal').classList.remove('show'); };
+  window.editVehicle = function(id){
+    var v = vehicles.find(function(x){ return x.id === id; });
+    if (!v) return;
+    editingVehicleId = id;
+    document.getElementById('vehicle-modal-title').textContent = 'Modifier le véhicule';
+    document.getElementById('v-brand').value = v.brand||'';
+    document.getElementById('v-model').value = v.model||'';
+    document.getElementById('v-plate').value = v.plate||'';
+    document.getElementById('v-color').value = v.color||'';
+    document.getElementById('v-chassis').value = v.chassis||'';
+    document.getElementById('v-tier').value = v.tier||'Comfort';
+    document.getElementById('v-status').value = v.status||'disponible';
+    fillDriverSelect(document.getElementById('v-driver'), v.assignedDriverId||'');
+    document.getElementById('v-km').value = v.km||0;
+    document.getElementById('v-last-maintenance-km').value = v.lastMaintenanceKm||0;
+    document.getElementById('v-insurance').value = v.insuranceExpiry||'';
+    document.getElementById('v-carte-grise').value = v.carteGriseExpiry||'';
+    document.getElementById('v-visite').value = v.visiteExpiry||'';
+    document.getElementById('v-notes').value = v.notes||'';
+    document.getElementById('vehicle-error').style.display = 'none';
+    document.getElementById('vehicle-modal').classList.add('show');
+  };
+  window.deleteVehicle = async function(id){
+    if (!confirm('Supprimer ce véhicule ?')) return;
+    try{ await deleteDoc(doc(db,'vehicles',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+
+  async function uploadPhoto(file, path){
+    const r = storageRef(storage, path);
+    await uploadBytes(r, file);
+    return await getDownloadURL(r);
+  }
+
+  document.getElementById('vehicle-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var errBox = document.getElementById('vehicle-error'); errBox.style.display = 'none';
+    var payload = {
+      brand: document.getElementById('v-brand').value.trim(),
+      model: document.getElementById('v-model').value.trim(),
+      plate: document.getElementById('v-plate').value.trim(),
+      color: document.getElementById('v-color').value.trim(),
+      chassis: document.getElementById('v-chassis').value.trim(),
+      tier: document.getElementById('v-tier').value,
+      status: document.getElementById('v-status').value,
+      assignedDriverId: document.getElementById('v-driver').value || null,
+      km: parseFloat(document.getElementById('v-km').value) || 0,
+      lastMaintenanceKm: parseFloat(document.getElementById('v-last-maintenance-km').value) || 0,
+      insuranceExpiry: document.getElementById('v-insurance').value || null,
+      carteGriseExpiry: document.getElementById('v-carte-grise').value || null,
+      visiteExpiry: document.getElementById('v-visite').value || null,
+      notes: document.getElementById('v-notes').value.trim()
+    };
+    var btn = document.getElementById('vehicle-submit-btn');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    try{
+      var vId = editingVehicleId;
+      if (!vId){
+        var ref = await addDoc(collection(db,'vehicles'), payload);
+        vId = ref.id;
+      }
+      var photoFile = document.getElementById('v-photo').files[0];
+      if (photoFile){
+        var url = await uploadPhoto(photoFile, 'vehicles/' + vId + '/photo.jpg');
+        payload.photoUrl = url;
+      }
+      await updateDoc(doc(db,'vehicles',vId), payload);
+      closeVehicleModal();
+    }catch(err){
+      console.error(err);
+      errBox.textContent = "Impossible d'enregistrer ce véhicule pour le moment.";
+      errBox.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  });
+
+  window.openDriverModal = function(){
+    editingDriverId = null;
+    document.getElementById('driver-modal-title').textContent = 'Ajouter un chauffeur';
+    document.getElementById('driver-form').reset();
+    document.getElementById('driver-error').style.display = 'none';
+    fillVehicleSelect(document.getElementById('d-vehicle'), '');
+    document.getElementById('driver-modal').classList.add('show');
+  };
+  window.closeDriverModal = function(){ document.getElementById('driver-modal').classList.remove('show'); };
+  window.editDriver = function(id){
+    var d = drivers.find(function(x){ return x.id === id; });
+    if (!d) return;
+    editingDriverId = id;
+    document.getElementById('driver-modal-title').textContent = 'Modifier le chauffeur';
+    document.getElementById('d-name').value = d.name||'';
+    document.getElementById('d-phone').value = d.phone||'';
+    fillVehicleSelect(document.getElementById('d-vehicle'), d.assignedVehicleId||'');
+    document.getElementById('d-address').value = d.address||'';
+    document.getElementById('d-notes').value = d.notes||'';
+    document.getElementById('driver-error').style.display = 'none';
+    document.getElementById('driver-modal').classList.add('show');
+  };
+  window.deleteDriver = async function(id){
+    if (!confirm('Supprimer ce chauffeur ?')) return;
+    try{ await deleteDoc(doc(db,'drivers',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+
+  document.getElementById('driver-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var errBox = document.getElementById('driver-error'); errBox.style.display = 'none';
+    var payload = {
+      name: document.getElementById('d-name').value.trim(),
+      phone: document.getElementById('d-phone').value.trim(),
+      assignedVehicleId: document.getElementById('d-vehicle').value || null,
+      address: document.getElementById('d-address').value.trim(),
+      notes: document.getElementById('d-notes').value.trim()
+    };
+    var btn = document.getElementById('driver-submit-btn');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    try{
+      var dId = editingDriverId;
+      if (!dId){
+        var ref2 = await addDoc(collection(db,'drivers'), payload);
+        dId = ref2.id;
+      }
+      var licenseFile = document.getElementById('d-license').files[0];
+      if (licenseFile){
+        var url2 = await uploadPhoto(licenseFile, 'drivers/' + dId + '/license.jpg');
+        payload.licensePhotoUrl = url2;
+      }
+      await updateDoc(doc(db,'drivers',dId), payload);
+      closeDriverModal();
+    }catch(err){
+      console.error(err);
+      errBox.textContent = "Impossible d'enregistrer ce chauffeur pour le moment.";
+      errBox.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  });
+
+  // ---------- Vehicle history: fuel / maintenance / incidents ----------
+  var historyVehicleId = null;
+  var fuelLogs = [], maintLogs = [], incidents = [];
+  var fuelUnsub = null, maintUnsub = null, incidentUnsub = null;
+
+  window.setHistoryTab = function(tab){
+    ['fuel','maint','incident'].forEach(function(t){
+      document.getElementById('htab-' + t).classList.toggle('active', t === tab);
+      document.getElementById('hpanel-' + t).style.display = t === tab ? 'block' : 'none';
+    });
+  };
+
+  function stopHistoryListeners(){
+    if (fuelUnsub) fuelUnsub();
+    if (maintUnsub) maintUnsub();
+    if (incidentUnsub) incidentUnsub();
+    fuelUnsub = maintUnsub = incidentUnsub = null;
+  }
+
+  window.openHistoryModal = function(vehicleId){
+    var v = vehicles.find(function(x){ return x.id === vehicleId; });
+    if (!v) return;
+    historyVehicleId = vehicleId;
+    document.getElementById('history-title').textContent = 'Historique — ' + v.brand + ' ' + v.model + ' (' + v.plate + ')';
+    document.getElementById('f-fuel-date').value = todayISO();
+    document.getElementById('f-maint-date').value = todayISO();
+    document.getElementById('f-inc-date').value = todayISO();
+    setHistoryTab('fuel');
+    stopHistoryListeners();
+
+    fuelUnsub = onSnapshot(query(collection(db,'fuel_logs'), orderBy('date','desc')), function(snap){
+      fuelLogs = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
+      renderFuelList();
+    });
+    maintUnsub = onSnapshot(query(collection(db,'maintenance_logs'), orderBy('date','desc')), function(snap){
+      maintLogs = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
+      renderMaintList();
+    });
+    incidentUnsub = onSnapshot(query(collection(db,'incidents'), orderBy('date','desc')), function(snap){
+      incidents = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
+      renderIncidentList();
+    });
+
+    document.getElementById('history-modal').classList.add('show');
+  };
+  window.closeHistoryModal = function(){
+    document.getElementById('history-modal').classList.remove('show');
+    stopHistoryListeners();
+    historyVehicleId = null;
+  };
+
+  function renderFuelList(){
+    var total = fuelLogs.reduce(function(s,f){ return s + (f.cost||0); }, 0);
+    document.getElementById('fuel-total').textContent = fuelLogs.length + ' plein(s) — total ' + fmtAr(total);
+    var box = document.getElementById('fuel-list');
+    box.innerHTML = fuelLogs.length ? fuelLogs.map(function(f){
+      return '<div class="day-row"><span>' + isoToDisplay(f.date) + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.km ? ' · ' + f.km.toLocaleString('fr-FR') + ' km' : '') + '</span><span>' + fmtAr(f.cost||0) + '</span></div>';
+    }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun plein enregistré.</span></div>';
+  }
+  function renderMaintList(){
+    var total = maintLogs.reduce(function(s,m){ return s + (m.cost||0); }, 0);
+    document.getElementById('maint-total').textContent = maintLogs.length + ' entretien(s) — total ' + fmtAr(total);
+    var box = document.getElementById('maint-list');
+    box.innerHTML = maintLogs.length ? maintLogs.map(function(m){
+      return '<div class="day-row"><span>' + isoToDisplay(m.date) + ' · ' + m.type + (m.garage ? ' · ' + m.garage : '') + ' · ' + (m.km||0).toLocaleString('fr-FR') + ' km</span><span>' + fmtAr(m.cost||0) + '</span></div>';
+    }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun entretien enregistré.</span></div>';
+  }
+  function renderIncidentList(){
+    var box = document.getElementById('incident-list');
+    box.innerHTML = incidents.length ? incidents.map(function(i){
+      return '<div class="day-row" style="align-items:center;"><span>' + isoToDisplay(i.date) + ' — ' + i.description + '</span>' + (i.photoUrl ? '<img src="'+i.photoUrl+'" style="width:40px; height:40px; object-fit:cover; border-radius:3px;">' : '') + '</div>';
+    }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun incident signalé.</span></div>';
+  }
+
+  document.getElementById('fuel-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!historyVehicleId) return;
+    try{
+      await addDoc(collection(db,'fuel_logs'), {
+        vehicleId: historyVehicleId,
+        date: document.getElementById('f-fuel-date').value,
+        cost: parseFloat(document.getElementById('f-fuel-cost').value) || 0,
+        liters: parseFloat(document.getElementById('f-fuel-liters').value) || null,
+        km: parseFloat(document.getElementById('f-fuel-km').value) || null,
+        createdAt: serverTimestamp()
+      });
+      document.getElementById('fuel-form').reset();
+      document.getElementById('f-fuel-date').value = todayISO();
+    }catch(err){ console.error(err); alert("Impossible d'ajouter ce plein pour le moment."); }
+  });
+
+  document.getElementById('maint-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!historyVehicleId) return;
+    try{
+      var km = parseFloat(document.getElementById('f-maint-km').value) || 0;
+      await addDoc(collection(db,'maintenance_logs'), {
+        vehicleId: historyVehicleId,
+        date: document.getElementById('f-maint-date').value,
+        cost: parseFloat(document.getElementById('f-maint-cost').value) || 0,
+        km: km,
+        type: document.getElementById('f-maint-type').value.trim(),
+        garage: document.getElementById('f-maint-garage').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      if (document.getElementById('f-maint-update-km').checked){
+        await updateDoc(doc(db,'vehicles',historyVehicleId), { lastMaintenanceKm: km });
+      }
+      document.getElementById('maint-form').reset();
+      document.getElementById('f-maint-date').value = todayISO();
+      document.getElementById('f-maint-update-km').checked = true;
+    }catch(err){ console.error(err); alert("Impossible d'ajouter cet entretien pour le moment."); }
+  });
+
+  document.getElementById('incident-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if (!historyVehicleId) return;
+    var btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Envoi…';
+    try{
+      var ref = await addDoc(collection(db,'incidents'), {
+        vehicleId: historyVehicleId,
+        date: document.getElementById('f-inc-date').value,
+        description: document.getElementById('f-inc-desc').value.trim(),
+        createdAt: serverTimestamp()
+      });
+      var photoFile = document.getElementById('f-inc-photo').files[0];
+      if (photoFile){
+        var url = await uploadPhoto(photoFile, 'incidents/' + ref.id + '.jpg');
+        await updateDoc(doc(db,'incidents',ref.id), { photoUrl: url });
+      }
+      document.getElementById('incident-form').reset();
+      document.getElementById('f-inc-date').value = todayISO();
+    }catch(err){ console.error(err); alert("Impossible d'enregistrer cet incident pour le moment."); }
+    btn.disabled = false; btn.textContent = '+ Signaler un incident';
+  });
 
   // ---------- Stats + calendar ----------
   const MONTH_NAMES = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
@@ -431,81 +1090,172 @@ h2{font-size:38px}
     const monthRides = requests.filter(r => r.date && r.date.startsWith(key)).sort((a,b)=>a.date.localeCompare(b.date));
     const revenue = monthRides.reduce((s,r)=>s+(r.fareAmount||0),0);
     const km = monthRides.reduce((s,r)=>s+(r.distanceKm||0),0);
+    const avg = monthRides.length ? revenue / monthRides.length : 0;
+    const monthLabel = MONTH_NAMES[currentMonth.getMonth()] + " " + currentMonth.getFullYear();
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF();
-    pdf.setFontSize(18);
-    pdf.text("VTC PLUS — Rapport mensuel", 14, 18);
-    pdf.setFontSize(12);
-    pdf.text(MONTH_NAMES[currentMonth.getMonth()] + " " + currentMonth.getFullYear(), 14, 26);
-    pdf.setFontSize(10);
-    pdf.text("Courses : " + monthRides.length + "   |   Revenu total : " + fmtAr(revenue) + "   |   Kilomètres : " + km.toFixed(1) + " km", 14, 34);
+    const pageW = pdf.internal.pageSize.getWidth();
+
+    // Header band
+    pdf.setFillColor(17, 17, 18);
+    pdf.rect(0, 0, pageW, 32, 'F');
+    pdf.setTextColor(201, 164, 92);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(20);
+    pdf.text("VTC PLUS", 14, 16);
+    pdf.setTextColor(244, 240, 230);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(11);
+    pdf.text("Rapport mensuel — " + monthLabel, 14, 25);
+
+    // Summary boxes
+    const boxes = [
+      { label: "COURSES", value: String(monthRides.length) },
+      { label: "REVENU TOTAL", value: fmtAr(revenue) },
+      { label: "KILOMÈTRES", value: km.toFixed(1) + " km" },
+      { label: "PANIER MOYEN", value: fmtAr(avg) }
+    ];
+    const boxMargin = 14, boxGap = 4;
+    const boxW = (pageW - boxMargin * 2 - boxGap * 3) / 4;
+    const boxY = 40, boxH = 22;
+    boxes.forEach(function(b, i){
+      const x = boxMargin + i * (boxW + boxGap);
+      pdf.setDrawColor(225, 220, 208);
+      pdf.setFillColor(247, 245, 240);
+      pdf.roundedRect(x, boxY, boxW, boxH, 1.5, 1.5, 'FD');
+      pdf.setTextColor(140, 135, 125);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.text(b.label, x + 4, boxY + 7);
+      pdf.setTextColor(30, 28, 26);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12.5);
+      pdf.text(b.value, x + 4, boxY + 16);
+    });
 
     pdf.autoTable({
-      startY: 42,
+      startY: boxY + boxH + 12,
       head: [["Date","Client","Trajet","Formule","Source","Statut","Montant"]],
       body: monthRides.map(r => [
         isoToDisplay(r.date), r.name, r.pickup + " → " + r.dest, r.tier,
         SOURCE_LABEL[r.source]||"Site web", labelStatus(r.status), r.estimate
       ]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [201,164,92], textColor: [20,17,18] }
+      styles: { fontSize: 8.5, cellPadding: 4, textColor: [40,38,35], lineColor: [230,225,215], lineWidth: 0.1 },
+      headStyles: { fillColor: [201,164,92], textColor: [20,17,18], fontStyle: 'bold', fontSize: 8.5 },
+      alternateRowStyles: { fillColor: [250,248,244] },
+      columnStyles: { 6: { halign: 'right', fontStyle: 'bold' } },
+      margin: { left: 14, right: 14 },
+      didDrawPage: function(){
+        const h = pdf.internal.pageSize.getHeight();
+        pdf.setDrawColor(225, 220, 208);
+        pdf.line(14, h - 15, pageW - 14, h - 15);
+        pdf.setFontSize(8);
+        pdf.setTextColor(140, 135, 125);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text("VTC PLUS — Généré le " + new Date().toLocaleDateString('fr-FR'), 14, h - 9);
+        pdf.text("Page " + pdf.internal.getNumberOfPages(), pageW - 14, h - 9, { align: 'right' });
+      }
     });
 
     pdf.save("vtc-plus-rapport-" + key + ".pdf");
   };
 
   // ---------- Add reservation manually ----------
+  var addServiceType = 'course';
+  window.setServiceType = function(type){
+    addServiceType = type;
+    document.getElementById('a-type-course').classList.toggle('active', type==='course');
+    document.getElementById('a-type-disp').classList.toggle('active', type==='disposition');
+    document.getElementById('a-course-fields').style.display = type==='course' ? 'block' : 'none';
+    document.getElementById('a-disp-fields').style.display = type==='disposition' ? 'block' : 'none';
+    recalcFare();
+  };
+
   window.openAddModal = function(){
     document.getElementById("add-form").reset();
     document.getElementById("a-date").value = todayISO();
     document.getElementById("add-error").style.display = "none";
+    fillVehicleSelect(document.getElementById('a-vehicle'), '');
+    setServiceType('course');
     document.getElementById("add-modal").classList.add("show");
   };
   window.closeAddModal = function(){ document.getElementById("add-modal").classList.remove("show"); };
 
   function recalcFare(){
-    const km = parseFloat(document.getElementById("a-km").value);
     const tier = document.getElementById("a-tier").value;
+    if (addServiceType === 'disposition'){
+      const blocks = parseInt(document.getElementById('a-blocks').value, 10);
+      if (!isNaN(blocks) && blocks > 0){
+        document.getElementById('a-fare').value = blocks * MISE_A_DISPO_RATES[tier];
+      }
+      return;
+    }
+    const km = parseFloat(document.getElementById("a-km").value);
     if(!isNaN(km) && km > 0){
       const fare = Math.max(MIN_FARE[tier], Math.round(km * RATES[tier] / 100) * 100);
       document.getElementById("a-fare").value = fare;
     }
   }
   document.getElementById("a-km").addEventListener("input", recalcFare);
+  document.getElementById("a-blocks").addEventListener("input", recalcFare);
   document.getElementById("a-tier").addEventListener("change", recalcFare);
 
   document.getElementById("add-form").addEventListener("submit", async (e)=>{
     e.preventDefault();
     const errBox = document.getElementById("add-error");
     errBox.style.display = "none";
-    const km = parseFloat(document.getElementById("a-km").value);
     const fareAmount = parseFloat(document.getElementById("a-fare").value);
-    if(isNaN(km) || km <= 0 || isNaN(fareAmount) || fareAmount <= 0){
-      errBox.textContent = "Merci de renseigner une distance et un montant valides.";
+    const km = addServiceType === 'course' ? parseFloat(document.getElementById("a-km").value) : null;
+    const blocks = addServiceType === 'disposition' ? parseInt(document.getElementById('a-blocks').value, 10) : null;
+
+    if (addServiceType === 'course' && (isNaN(km) || km <= 0)){
+      errBox.textContent = "Merci de renseigner une distance valide.";
+      errBox.style.display = "block";
+      return;
+    }
+    if (addServiceType === 'disposition' && (isNaN(blocks) || blocks <= 0)){
+      errBox.textContent = "Merci de renseigner un nombre de blocs de 5h valide.";
+      errBox.style.display = "block";
+      return;
+    }
+    if (isNaN(fareAmount) || fareAmount <= 0){
+      errBox.textContent = "Merci de renseigner un montant valide.";
       errBox.style.display = "block";
       return;
     }
     const btn = document.getElementById("add-submit-btn");
     btn.disabled = true; btn.textContent = "Ajout en cours…";
     try{
-      await addDoc(collection(db,"reservations"), {
+      var payload = {
         name: document.getElementById("a-name").value.trim(),
         phone: document.getElementById("a-phone").value.trim(),
-        pickup: document.getElementById("a-pickup").value.trim(),
-        destination: document.getElementById("a-dest").value.trim(),
+        serviceType: addServiceType,
         date: document.getElementById("a-date").value,
         time: document.getElementById("a-time").value || null,
         tier: document.getElementById("a-tier").value,
-        distanceKm: km,
         fareAmount: fareAmount,
         estimatedFare: fmtAr(fareAmount),
         source: document.getElementById("a-source").value,
         status: document.getElementById("a-status").value,
         whenMode: "manual",
+        assignedVehicleId: document.getElementById('a-vehicle').value || null,
+        paymentMethod: document.getElementById('a-payment').value || null,
+        notes: document.getElementById('a-notes').value.trim(),
         message: "",
         createdAt: serverTimestamp()
-      });
+      };
+      if (addServiceType === 'course'){
+        payload.pickup = document.getElementById("a-pickup").value.trim();
+        payload.destination = document.getElementById("a-dest").value.trim();
+        payload.distanceKm = km;
+      } else {
+        payload.pickup = document.getElementById("a-disp-pickup").value.trim();
+        payload.destination = "Mise à disposition (" + blocks + " × 5h)";
+        payload.distanceKm = 0;
+        payload.blocks = blocks;
+      }
+      await addDoc(collection(db,"reservations"), payload);
       closeAddModal();
     }catch(err){
       console.error(err);
@@ -544,7 +1294,11 @@ h2{font-size:38px}
           date: v.date || "", time: v.time || "",
           tier: v.tier||"Comfort", estimate: v.estimatedFare||"—",
           fareAmount: v.fareAmount || 0, distanceKm: v.distanceKm || 0,
-          source: v.source || "site", status: v.status||"new"
+          source: v.source || "site", status: v.status||"new",
+          assignedVehicleId: v.assignedVehicleId || null,
+          paymentMethod: v.paymentMethod || null,
+          notes: v.notes || "",
+          serviceType: v.serviceType || "course"
         };
       });
       render();
@@ -571,11 +1325,15 @@ h2{font-size:38px}
       }catch(e){ isDirector = false; }
       document.getElementById("role-pill").textContent = isDirector ? "Direction" : "Gérante";
       if(!unsubscribe) startListening();
+      if(!vehiclesUnsub) startFleetListeners();
       renderStats();
     } else {
       document.getElementById("dashboard").style.display="none";
       document.getElementById("login").style.display="flex";
       if(unsubscribe){ unsubscribe(); unsubscribe=null; firstSnapshot=true; requests=[]; isDirector=false; }
+      if(vehiclesUnsub){ vehiclesUnsub(); vehiclesUnsub=null; vehicles=[]; }
+      if(driversUnsub){ driversUnsub(); driversUnsub=null; drivers=[]; }
+      stopHistoryListeners();
     }
   });
 </script>
