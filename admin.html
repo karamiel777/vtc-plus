@@ -28,6 +28,7 @@ input:focus,select:focus{border-color:var(--gold)}
 .field{margin-bottom:18px}
 .btn{border:0;border-radius:3px;padding:13px 18px;cursor:pointer;font-weight:700}
 .btn-gold{background:var(--gold);color:#141112}
+.btn-gold:disabled{opacity:.6;cursor:not-allowed}
 .btn-dark{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
 .error{display:none;background:rgba(217,87,87,.12);border:1px solid var(--red);color:#f2a2a2;padding:11px 13px;border-radius:3px;font-size:13px;margin-bottom:16px}
 .demo-note{margin-top:20px;color:var(--muted);font-size:11.5px;line-height:1.5}
@@ -61,6 +62,7 @@ h2{font-size:38px}
 .actions{display:flex;gap:7px;justify-content:flex-end}.actions button{padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text);font-size:11px}
 .actions .confirm{background:var(--gold);border-color:var(--gold);color:#141112;font-weight:700}
 .empty{text-align:center;padding:55px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px}
+.loading{text-align:center;padding:55px;color:var(--muted)}
 @media(max-width:850px){
   header{padding:0 18px}.admin-label{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
@@ -85,9 +87,9 @@ h2{font-size:38px}
         <label for="admin-password">Mot de passe</label>
         <input id="admin-password" type="password" placeholder="••••••••" required>
       </div>
-      <button class="btn btn-gold" style="width:100%" type="submit">Se connecter</button>
+      <button id="login-btn" class="btn btn-gold" style="width:100%" type="submit">Se connecter</button>
     </form>
-    <div class="demo-note">La connexion affichée ici est une maquette d'interface. L'authentification réelle sera branchée à Firebase avant la mise en production.</div>
+    <div class="demo-note">Connexion sécurisée via Firebase Authentication.</div>
   </div>
 </section>
 
@@ -128,91 +130,149 @@ h2{font-size:38px}
     <button class="filter" data-filter="confirmed">🟢 Confirmées</button>
   </div>
 
-  <div id="requests" class="requests"></div>
+  <div id="requests" class="requests"><div class="loading">Chargement des réservations…</div></div>
 </main>
 </section>
 
-<script>
-const demoRequests = [
-  {id:1042,name:"Jean R.",phone:"+261 34 00 000 00",pickup:"Analakely",dest:"Ivato Aéroport",date:"18/09/2026",time:"14:30",tier:"Premium",estimate:"35 000 Ar",status:"new"},
-  {id:1041,name:"Sarah M.",phone:"+261 32 11 222 33",pickup:"Ankorondrano",dest:"Ambohimangakely",date:"18/09/2026",time:"16:00",tier:"Comfort",estimate:"28 000 Ar",status:"pending"},
-  {id:1040,name:"Marc T.",phone:"+261 33 44 555 66",pickup:"Ivato",dest:"Centre-ville",date:"17/09/2026",time:"19:15",tier:"Premium",estimate:"42 000 Ar",status:"confirmed"}
-];
-let requests = [...demoRequests];
-let activeFilter = "all";
+<script type="module">
+  import { app, db } from "./firebase-config.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+  import {
+    collection, query, orderBy, onSnapshot, doc, updateDoc
+  } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
-function render(){
-  const counts = {new:0,pending:0,confirmed:0,today:0};
-  const today = new Date().toLocaleDateString("fr-FR");
-  requests.forEach(r=>{
-    if(counts[r.status] !== undefined) counts[r.status]++;
-    if(r.date === today) counts.today++;
+  const auth = getAuth(app);
+  let requests = [];
+  let activeFilter = "all";
+  let unsubscribe = null;
+  let firstSnapshot = true;
+
+  function labelStatus(s){return s==="new"?"NOUVELLE":s==="pending"?"EN ATTENTE":"CONFIRMÉE"}
+
+  function render(){
+    const counts = {new:0,pending:0,confirmed:0,today:0};
+    const today = new Date().toLocaleDateString("fr-FR");
+    requests.forEach(r=>{
+      if(counts[r.status] !== undefined) counts[r.status]++;
+      if(r.date === today) counts.today++;
+    });
+    document.getElementById("stat-new").textContent=counts.new;
+    document.getElementById("stat-pending").textContent=counts.pending;
+    document.getElementById("stat-confirmed").textContent=counts.confirmed;
+    document.getElementById("stat-today").textContent=counts.today;
+
+    const list=requests.filter(r=>activeFilter==="all" || r.status===activeFilter);
+    const box=document.getElementById("requests");
+    if(!list.length){box.innerHTML='<div class="empty">Aucune réservation dans cette catégorie.</div>';return;}
+    box.innerHTML=list.map(r=>`
+      <div class="request ${r.status==="new"?"new":""}">
+        <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small></div>
+        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${r.date ? r.date+(r.time?" à "+r.time:"") : "Au plus vite"}</div>
+        <div><small>FORMULE</small><strong>${r.tier}</strong></div>
+        <div><small>ESTIMATION</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
+        <div class="actions">
+          <button onclick="callClient('${r.phone}')">📞</button>
+          <button onclick="whatsapp('${r.phone}')">💬</button>
+          ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest('${r.id}')">✓ Confirmer</button>`:""}
+        </div>
+      </div>`).join("");
+  }
+
+  window.confirmRequest = async function(id){
+    try{
+      await updateDoc(doc(db,"reservations",id), { status:"confirmed" });
+    }catch(e){ console.error("Erreur de mise à jour:", e); alert("Impossible de confirmer cette réservation pour le moment."); }
+  };
+  window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
+  window.whatsapp = function(phone){ window.open("https://wa.me/"+phone.replace(/\D/g,""),"_blank"); };
+
+  function playSound(){
+    try{
+      const C=window.AudioContext||window.webkitAudioContext;
+      const ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();
+      o.frequency.value=880;o.type="sine";g.gain.value=.07;o.connect(g);g.connect(ctx.destination);
+      o.start();o.stop(ctx.currentTime+.22);
+    }catch(e){}
+  }
+  function showNewAlert(){
+    const a=document.getElementById("new-alert");
+    a.style.display="flex";
+    document.getElementById("alert-text").textContent="🔴 Nouvelle demande reçue";
+    playSound();
+    setTimeout(()=>{ a.style.display="none"; }, 4500);
+  }
+  window.testNotification = function(){ showNewAlert(); };
+
+  document.querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");activeFilter=b.dataset.filter;render();
+  }));
+
+  function startListening(){
+    const box=document.getElementById("requests");
+    box.innerHTML='<div class="loading">Chargement des réservations…</div>';
+    const q = query(collection(db,"reservations"), orderBy("createdAt","desc"));
+    unsubscribe = onSnapshot(q, (snap) => {
+      requests = snap.docs.map(d => {
+        const v = d.data();
+        return {
+          id: d.id,
+          name: v.name || "—",
+          phone: v.phone || "—",
+          pickup: v.pickup || "—",
+          dest: v.destination || "—",
+          date: v.date ? v.date.split("-").reverse().join("/") : "",
+          time: v.time || "",
+          tier: v.tier || "Comfort",
+          estimate: v.estimatedFare || "—",
+          status: v.status || "new"
+        };
+      });
+      render();
+      if(!firstSnapshot){
+        const hasNew = snap.docChanges().some(c => c.type === "added");
+        if(hasNew) showNewAlert();
+      }
+      firstSnapshot = false;
+    }, (err) => {
+      console.error("Erreur Firestore:", err);
+      box.innerHTML = '<div class="empty">Impossible de charger les réservations. Vérifiez les règles de sécurité Firestore.</div>';
+    });
+  }
+
+  document.getElementById("login-form").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const email=document.getElementById("admin-email").value.trim();
+    const pass=document.getElementById("admin-password").value;
+    const btn=document.getElementById("login-btn");
+    const errBox=document.getElementById("login-error");
+    errBox.style.display="none";
+    btn.disabled=true; btn.textContent="Connexion…";
+    try{
+      await signInWithEmailAndPassword(auth, email, pass);
+    }catch(err){
+      errBox.textContent = "Identifiants incorrects.";
+      errBox.style.display="block";
+    }
+    btn.disabled=false; btn.textContent="Se connecter";
   });
-  document.getElementById("stat-new").textContent=counts.new;
-  document.getElementById("stat-pending").textContent=counts.pending;
-  document.getElementById("stat-confirmed").textContent=counts.confirmed;
-  document.getElementById("stat-today").textContent=counts.today;
 
-  const list=requests.filter(r=>activeFilter==="all" || r.status===activeFilter);
-  const box=document.getElementById("requests");
-  if(!list.length){box.innerHTML='<div class="empty">Aucune réservation dans cette catégorie.</div>';return;}
-  box.innerHTML=list.map(r=>`
-    <div class="request ${r.status==="new"?"new":""}">
-      <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small></div>
-      <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${r.date} à ${r.time}</div>
-      <div><small>FORMULE</small><strong>${r.tier}</strong></div>
-      <div><small>ESTIMATION</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
-      <div class="actions">
-        <button onclick="callClient('${r.phone}')">📞</button>
-        <button onclick="whatsapp('${r.phone}')">💬</button>
-        ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest(${r.id})">✓ Confirmer</button>`:""}
-      </div>
-    </div>`).join("");
-}
-function labelStatus(s){return s==="new"?"NOUVELLE":s==="pending"?"EN ATTENTE":"CONFIRMÉE"}
-function confirmRequest(id){
-  const r=requests.find(x=>x.id===id);
-  if(r){r.status="confirmed";render();}
-}
-function callClient(phone){window.location.href="tel:"+phone.replace(/\s/g,"")}
-function whatsapp(phone){window.open("https://wa.me/"+phone.replace(/\D/g,""),"_blank")}
-function showNewAlert(){
-  const a=document.getElementById("new-alert");
-  a.style.display="flex";
-  document.getElementById("alert-text").textContent="🔴 Nouvelle demande reçue";
-  playSound();
-}
-function playSound(){
-  try{
-    const C=window.AudioContext||window.webkitAudioContext;
-    const ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();
-    o.frequency.value=880;o.type="sine";g.gain.value=.07;o.connect(g);g.connect(ctx.destination);
-    o.start();o.stop(ctx.currentTime+.22);
-  }catch(e){}
-}
-function testNotification(){showNewAlert();setTimeout(()=>document.getElementById("new-alert").style.display="none",3500)}
-document.querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{
-  document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));
-  b.classList.add("active");activeFilter=b.dataset.filter;render();
-}));
-document.getElementById("login-form").addEventListener("submit",e=>{
-  e.preventDefault();
-  const email=document.getElementById("admin-email").value.trim();
-  const pass=document.getElementById("admin-password").value;
-  // Temporary mock login — Firebase Authentication will replace this.
-  if(email && pass.length>=4){
-    document.getElementById("login").style.display="none";
-    document.getElementById("dashboard").style.display="block";
-    render();
-    // Browser audio is unlocked after this user interaction.
-  }else document.getElementById("login-error").style.display="block";
-});
-function logout(){
-  document.getElementById("dashboard").style.display="none";
-  document.getElementById("login").style.display="flex";
-  document.getElementById("admin-password").value="";
-}
-render();
+  window.logout = function(){ signOut(auth); };
+
+  onAuthStateChanged(auth, (user)=>{
+    if(user){
+      document.getElementById("login").style.display="none";
+      document.getElementById("dashboard").style.display="block";
+      document.getElementById("admin-password").value="";
+      if(!unsubscribe) startListening();
+    } else {
+      document.getElementById("dashboard").style.display="none";
+      document.getElementById("login").style.display="flex";
+      if(unsubscribe){ unsubscribe(); unsubscribe=null; firstSnapshot=true; requests=[]; }
+    }
+  });
 </script>
 </body>
 </html>
