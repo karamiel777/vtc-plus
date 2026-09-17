@@ -158,7 +158,8 @@
       <textarea id="f-message" rows="3" placeholder="Bagages, arrêt supplémentaire, préférence…" class="form-input" style="resize:vertical;"></textarea>
     </div>
 
-    <a id="wa-submit" href="#" target="_blank" rel="noopener" class="btn btn-gold" style="justify-content:center; margin-top:8px;" onclick="saveClientData()">Envoyer la demande sur WhatsApp</a>
+    <a id="wa-submit" href="#" class="btn btn-gold" style="justify-content:center; margin-top:8px;" onclick="submitReservation(event)">Envoyer ma demande</a>
+    <div id="reservation-feedback" style="display:none; padding:13px 15px; border-radius:2px; font-size:13px; line-height:1.5;"></div>
   </div>
 
   <div id="trip-history" style="display:none; max-width:640px; margin:24px auto 0; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:28px 40px;">
@@ -319,6 +320,54 @@
     <span>Le Uber Black de Madagascar</span>
   </div>
 </section>
+
+
+<script type="module">
+  import { db } from "./firebase-config.js";
+  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+
+  window.submitReservation = async function(event) {
+    if (event) event.preventDefault();
+    var btn = document.getElementById("wa-submit");
+    var feedback = document.getElementById("reservation-feedback");
+    var name = document.getElementById("f-name").value.trim();
+    var phone = document.getElementById("f-phone").value.trim();
+    var pickup = document.getElementById("f-pickup").value.trim();
+    var dest = document.getElementById("f-dest").value.trim();
+    var date = document.getElementById("f-date").value;
+    var time = document.getElementById("f-time").value;
+    var km = parseFloat(document.getElementById("f-km").value);
+    var message = document.getElementById("f-message").value.trim();
+    var estimate = document.getElementById("estimate-text").textContent;
+    var estimateVisible = document.getElementById("estimate-box").style.display !== "none";
+    var mode = window.vtcWhenMode || null;
+    function feedbackMsg(text, ok) {
+      feedback.style.display = "block"; feedback.textContent = text;
+      feedback.style.background = ok ? "rgba(101,184,137,.12)" : "rgba(217,87,87,.12)";
+      feedback.style.border = "1px solid " + (ok ? "var(--gold)" : "var(--red)");
+      feedback.style.color = ok ? "var(--gold-bright)" : "#ef9999";
+    }
+    if (!name || !phone || !pickup || !dest) return feedbackMsg("Merci de renseigner votre nom, votre numéro, le départ et la destination.", false);
+    if (!estimateVisible || isNaN(km) || km <= 0) return feedbackMsg("Calculez d'abord l'itinéraire pour obtenir l'estimation du trajet.", false);
+    if (!mode) return feedbackMsg("Choisissez « Au plus vite » ou une date de prise en charge.", false);
+    if (mode === "scheduled" && (!date || !time)) return feedbackMsg("Choisissez une date et une heure pour votre réservation.", false);
+    btn.style.pointerEvents="none"; btn.style.opacity=".65"; btn.textContent="Envoi en cours…"; feedback.style.display="none";
+    try {
+      var tier = selectedTier === "premium" ? "Premium" : "Comfort";
+      var ref = await addDoc(collection(db, "reservations"), {
+        name:name, phone:phone, pickup:pickup, destination:dest, date:date||null, time:time||null,
+        whenMode:mode, tier:tier, distanceKm:km, estimatedFare:estimate, message:message||"", status:"new", createdAt:serverTimestamp()
+      });
+      try { saveClientData(); } catch(e) {}
+      feedbackMsg("✓ Votre demande a bien été envoyée. Notre équipe va vous contacter pour confirmer votre trajet.", true);
+      btn.textContent="Demande envoyée ✓"; btn.style.opacity="1"; btn.dataset.reservationId=ref.id;
+    } catch(error) {
+      console.error("Erreur Firebase:", error);
+      feedbackMsg("Impossible d'envoyer la demande pour le moment. Vérifiez votre connexion et réessayez.", false);
+      btn.style.pointerEvents="auto"; btn.style.opacity="1"; btn.textContent="Envoyer ma demande";
+    }
+  };
+</script>
 
 <script>
   var premiumImages = [
@@ -511,11 +560,13 @@
   var MIN_FARE = { comfort: 20000, premium: 25000 };
   var selectedTier = 'premium';
   var whenMode = null;
+  window.vtcWhenMode = null;
 
   function pad2(n){ return n < 10 ? '0' + n : '' + n; }
 
   function selectWhenMode(mode){
     whenMode = mode;
+    window.vtcWhenMode = mode;
     document.getElementById('when-asap').classList.toggle('active', mode === 'asap');
     document.getElementById('when-scheduled').classList.toggle('active', mode === 'scheduled');
     document.getElementById('when-asap-note').style.display = mode === 'asap' ? 'block' : 'none';
@@ -598,7 +649,7 @@
     lines.push('Mon numéro : ' + (phone || '—'));
     if (message) lines.push('Message : ' + message);
 
-    var waLink = 'https://wa.me/261320589184?text=' + encodeURIComponent(lines.join('\n'));
+    var waLink = '#';
     document.getElementById('wa-submit').setAttribute('href', waLink);
   }
 
