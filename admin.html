@@ -244,9 +244,9 @@ h2{font-size:38px}
   <!-- FINANCES VIEW -->
   <div id="view-finances" class="view">
     <div style="display:flex; gap:10px; margin-bottom:26px;">
-      <button class="main-tab active" id="fintab-depenses" onclick="setFinanceTab('depenses')" style="margin-right:0;">💸 Dépenses</button>
-      <button class="main-tab" id="fintab-tresorerie" onclick="setFinanceTab('tresorerie')" style="margin-right:0;">💰 Trésorerie</button>
-      <button class="main-tab" id="fintab-recap" onclick="setFinanceTab('recap')" style="margin-right:0;">📋 Récap</button>
+      <button type="button" class="filter active" id="fintab-depenses" onclick="setFinanceTab('depenses')">💸 Dépenses</button>
+      <button type="button" class="filter" id="fintab-tresorerie" onclick="setFinanceTab('tresorerie')">💰 Trésorerie</button>
+      <button type="button" class="filter" id="fintab-recap" onclick="setFinanceTab('recap')">📋 Récap</button>
     </div>
 
     <!-- Dépenses -->
@@ -407,7 +407,7 @@ h2{font-size:38px}
         <div class="field"><label>Expiration carte grise</label><input id="v-carte-grise" type="date"></div>
       </div>
       <div class="field"><label>Expiration visite technique</label><input id="v-visite" type="date"></div>
-      <div class="field"><label>Photo ou document du véhicule (carte grise, assurance…)</label><input id="v-photo" type="file" accept="image/*,.pdf"><img id="v-photo-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Photo ou document du véhicule (carte grise, assurance…)</label><input id="v-photo" type="file" accept="image/*,.pdf"><img id="v-photo-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"><button type="button" id="v-photo-remove" class="btn btn-dark" style="display:none; margin-top:8px; padding:8px 12px; font-size:12px;" onclick="deleteVehiclePhoto()">🗑 Supprimer la photo</button></div>
       <div class="field"><label>Notes</label><textarea id="v-notes" rows="2" placeholder="Optionnel"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeVehicleModal()">Annuler</button>
@@ -429,7 +429,7 @@ h2{font-size:38px}
         <div class="field"><label>Véhicule attitré</label><select id="d-vehicle"><option value="">— Aucun —</option></select></div>
       </div>
       <div class="field"><label>Adresse</label><input id="d-address" placeholder="Optionnel"></div>
-      <div class="field"><label>Photo ou scan du permis</label><input id="d-license" type="file" accept="image/*,.pdf"><img id="d-license-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Photo ou scan du permis</label><input id="d-license" type="file" accept="image/*,.pdf"><img id="d-license-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"><button type="button" id="d-license-remove" class="btn btn-dark" style="display:none; margin-top:8px; padding:8px 12px; font-size:12px;" onclick="deleteDriverPhoto()">🗑 Supprimer la photo</button></div>
       <div class="field"><label>Notes</label><textarea id="d-notes" rows="2" placeholder="Optionnel"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeDriverModal()">Annuler</button>
@@ -663,7 +663,7 @@ h2{font-size:38px}
     getDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
   import {
-    ref as storageRef, uploadBytes, getDownloadURL
+    ref as storageRef, uploadBytes, getDownloadURL, deleteObject
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-storage.js";
 
   const auth = getAuth(app);
@@ -1000,6 +1000,7 @@ h2{font-size:38px}
     document.getElementById('vehicle-form').reset();
     document.getElementById('vehicle-error').style.display = 'none';
     document.getElementById('v-photo-preview').style.display = 'none';
+    document.getElementById('v-photo-remove').style.display = 'none';
     fillDriverSelect(document.getElementById('v-driver'), '');
     document.getElementById('vehicle-modal').classList.add('show');
   };
@@ -1026,12 +1027,33 @@ h2{font-size:38px}
     var preview = document.getElementById('v-photo-preview');
     if (v.photoUrl && !isPdfUrl(v.photoUrl)){ preview.src = v.photoUrl; preview.style.display = 'block'; }
     else { preview.style.display = 'none'; }
+    document.getElementById('v-photo-remove').style.display = v.photoUrl ? 'inline-block' : 'none';
     document.getElementById('vehicle-error').style.display = 'none';
     document.getElementById('vehicle-modal').classList.add('show');
   };
   window.deleteVehicle = async function(id){
     if (!confirm('Supprimer ce véhicule ?')) return;
     try{ await deleteDoc(doc(db,'vehicles',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+  window.deleteVehiclePhoto = async function(){
+    if (!editingVehicleId) return;
+    if (!confirm('Supprimer la photo / le document de ce véhicule ?')) return;
+    var v = vehicles.find(function(x){ return x.id === editingVehicleId; });
+    var btn = document.getElementById('v-photo-remove');
+    btn.disabled = true; btn.textContent = 'Suppression…';
+    try{
+      if (v && v.photoUrl){
+        try{ await deleteObject(storageRef(storage, v.photoUrl)); }catch(e){ /* fichier déjà absent du Storage, on continue */ }
+      }
+      await updateDoc(doc(db,'vehicles',editingVehicleId), { photoUrl: null });
+      document.getElementById('v-photo-preview').style.display = 'none';
+      document.getElementById('v-photo').value = '';
+      btn.style.display = 'none';
+    }catch(err){
+      console.error(err);
+      alert("Impossible de supprimer cette photo pour le moment.");
+    }
+    btn.disabled = false; btn.textContent = '🗑 Supprimer la photo';
   };
 
   async function uploadPhoto(file, path){
@@ -1100,6 +1122,7 @@ h2{font-size:38px}
     document.getElementById('driver-form').reset();
     document.getElementById('driver-error').style.display = 'none';
     document.getElementById('d-license-preview').style.display = 'none';
+    document.getElementById('d-license-remove').style.display = 'none';
     fillVehicleSelect(document.getElementById('d-vehicle'), '');
     document.getElementById('driver-modal').classList.add('show');
   };
@@ -1117,12 +1140,33 @@ h2{font-size:38px}
     var preview2 = document.getElementById('d-license-preview');
     if (d.licensePhotoUrl && !isPdfUrl(d.licensePhotoUrl)){ preview2.src = d.licensePhotoUrl; preview2.style.display = 'block'; }
     else { preview2.style.display = 'none'; }
+    document.getElementById('d-license-remove').style.display = d.licensePhotoUrl ? 'inline-block' : 'none';
     document.getElementById('driver-error').style.display = 'none';
     document.getElementById('driver-modal').classList.add('show');
   };
   window.deleteDriver = async function(id){
     if (!confirm('Supprimer ce chauffeur ?')) return;
     try{ await deleteDoc(doc(db,'drivers',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+  window.deleteDriverPhoto = async function(){
+    if (!editingDriverId) return;
+    if (!confirm('Supprimer la photo / le scan du permis de ce chauffeur ?')) return;
+    var d = drivers.find(function(x){ return x.id === editingDriverId; });
+    var btn = document.getElementById('d-license-remove');
+    btn.disabled = true; btn.textContent = 'Suppression…';
+    try{
+      if (d && d.licensePhotoUrl){
+        try{ await deleteObject(storageRef(storage, d.licensePhotoUrl)); }catch(e){ /* fichier déjà absent du Storage, on continue */ }
+      }
+      await updateDoc(doc(db,'drivers',editingDriverId), { licensePhotoUrl: null });
+      document.getElementById('d-license-preview').style.display = 'none';
+      document.getElementById('d-license').value = '';
+      btn.style.display = 'none';
+    }catch(err){
+      console.error(err);
+      alert("Impossible de supprimer cette photo pour le moment.");
+    }
+    btn.disabled = false; btn.textContent = '🗑 Supprimer la photo';
   };
 
   // ---------- Print A4 sheets ----------
