@@ -84,6 +84,11 @@ h2{font-size:38px}
 .valert.due{background:rgba(217,87,87,.14); color:#ef9999}
 .vcard-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; font-size:12.5px; color:var(--muted);}
 .vcard-grid strong{color:var(--text); display:block; font-size:14px;}
+.file-thumb{width:64px; height:64px; object-fit:cover; border-radius:3px; margin-right:12px; cursor:pointer; border:1px solid var(--border); background:var(--surface2);}
+.file-chip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--gold-bright); text-decoration:underline; cursor:pointer; margin-right:12px; background:none; border:none; padding:0; font-family:inherit;}
+.lightbox{display:none; position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:100; align-items:center; justify-content:center; padding:30px; cursor:zoom-out;}
+.lightbox.show{display:flex;}
+.lightbox img{max-width:90%; max-height:90%; border-radius:4px; box-shadow:0 20px 60px rgba(0,0,0,.5);}
 .empty{text-align:center;padding:55px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px}
 .loading{text-align:center;padding:55px;color:var(--muted)}
 .month-nav{display:flex;align-items:center;gap:16px;margin-bottom:22px}
@@ -117,6 +122,10 @@ h2{font-size:38px}
 </style>
 </head>
 <body>
+
+<div id="lightbox" class="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="">
+</div>
 
 <section id="login" class="login">
   <div class="login-card">
@@ -169,6 +178,7 @@ h2{font-size:38px}
     <button class="main-tab active" data-tab="reservations">Réservations</button>
     <button class="main-tab" data-tab="stats">Statistiques</button>
     <button class="main-tab" data-tab="fleet">Flotte</button>
+    <button class="main-tab" data-tab="finances">Finances</button>
   </div>
 
   <!-- RESERVATIONS VIEW -->
@@ -230,10 +240,131 @@ h2{font-size:38px}
     </div>
     <div id="drivers-list" class="requests"><div class="loading">Chargement…</div></div>
   </div>
+
+  <!-- FINANCES VIEW -->
+  <div id="view-finances" class="view">
+    <div style="display:flex; gap:10px; margin-bottom:26px;">
+      <button class="main-tab active" id="fintab-depenses" onclick="setFinanceTab('depenses')" style="margin-right:0;">💸 Dépenses</button>
+      <button class="main-tab" id="fintab-tresorerie" onclick="setFinanceTab('tresorerie')" style="margin-right:0;">💰 Trésorerie</button>
+      <button class="main-tab" id="fintab-recap" onclick="setFinanceTab('recap')" style="margin-right:0;">📋 Récap</button>
+    </div>
+
+    <!-- Dépenses -->
+    <div id="finpanel-depenses">
+      <div class="top" style="margin-bottom:20px;">
+        <div><h2 style="font-size:26px;">Dépenses</h2></div>
+        <button class="btn btn-gold" onclick="openExpenseModal()">+ Ajouter une dépense</button>
+      </div>
+      <div class="stats" id="expense-stats"></div>
+      <div class="toolbar">
+        <button class="filter active" data-expcat="all">Toutes</button>
+        <button class="filter" data-expcat="fuel">⛽ Carburant</button>
+        <button class="filter" data-expcat="maintenance">🔧 Entretien</button>
+        <button class="filter" data-expcat="salary">👨‍💼 Salaire</button>
+        <button class="filter" data-expcat="other">📄 Autre</button>
+      </div>
+      <div id="expenses-list" class="requests"></div>
+    </div>
+
+    <!-- Trésorerie -->
+    <div id="finpanel-tresorerie" style="display:none;">
+      <div class="top" style="margin-bottom:20px;">
+        <div><h2 style="font-size:26px;">Trésorerie du jour</h2></div>
+        <input id="tresor-date" type="date" class="form-input-like" style="width:auto; padding:10px 14px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:3px;">
+      </div>
+      <div class="stats" id="tresor-stats"></div>
+      <div class="day-detail" style="padding:20px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr style="text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase;">
+            <th style="padding:8px 6px;">Type</th><th style="padding:8px 6px;">Description</th><th style="padding:8px 6px;">Moyen</th>
+            <th style="padding:8px 6px; text-align:right;">Entrée</th><th style="padding:8px 6px; text-align:right;">Sortie</th>
+          </tr></thead>
+          <tbody id="tresor-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Récap -->
+    <div id="finpanel-recap" style="display:none;">
+      <div class="top" style="margin-bottom:20px;">
+        <div><h2 style="font-size:26px;">Récapitulatif</h2></div>
+        <button class="btn btn-gold" onclick="printRecap()">🖨 Imprimer le récap</button>
+      </div>
+      <div class="toolbar">
+        <button class="filter active" data-period="today">Aujourd'hui</button>
+        <button class="filter" data-period="yesterday">Hier</button>
+        <button class="filter" data-period="week">Cette semaine</button>
+        <button class="filter" data-period="month">Ce mois</button>
+        <button class="filter" data-period="lastmonth">Mois dernier</button>
+        <button class="filter" data-period="year">Cette année</button>
+      </div>
+      <div class="grid2" style="max-width:420px; margin-bottom:24px;">
+        <div class="field"><label>Du</label><input id="recap-from" type="date"></div>
+        <div class="field"><label>Au</label><input id="recap-to" type="date"></div>
+      </div>
+      <div id="recap-content"></div>
+    </div>
+  </div>
 </main>
 </section>
 
-<!-- VEHICLE MODAL -->
+<!-- EXPENSE MODAL -->
+<div id="expense-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Ajouter une dépense</h3>
+    <div id="expense-error" class="error"></div>
+    <form id="expense-form">
+      <div class="field">
+        <label>Catégorie</label>
+        <select id="e-category" onchange="onExpenseCategoryChange()">
+          <option value="fuel">⛽ Carburant</option>
+          <option value="maintenance">🔧 Entretien</option>
+          <option value="salary">👨‍💼 Salaire / paiement chauffeur</option>
+          <option value="other">📄 Autre dépense</option>
+        </select>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Date</label><input id="e-date" type="date" required></div>
+        <div class="field"><label>Montant (Ar)</label><input id="e-amount" type="number" min="0" required></div>
+      </div>
+      <div class="field"><label>Description</label><input id="e-description" required placeholder="Ex : Plein Galana, Salaire septembre…"></div>
+
+      <div id="e-fuel-fields" class="grid2" style="display:none;">
+        <div class="field">
+          <label>Station-service</label>
+          <select id="e-station"><option>Galana</option><option>Shell</option><option>Jovena</option><option>Autre</option></select>
+        </div>
+        <div class="field"><label>Quartier / adresse</label><input id="e-station-address"></div>
+      </div>
+
+      <div id="e-maint-fields" class="grid2" style="display:none;">
+        <div class="field"><label>Type d'entretien</label><input id="e-maint-type" placeholder="Ex : Vidange"></div>
+        <div class="field"><label>Garage</label><input id="e-garage"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="field"><label>Véhicule concerné (optionnel)</label><select id="e-vehicle"><option value="">— Aucun —</option></select></div>
+        <div class="field"><label>Personne concernée (optionnel)</label><select id="e-driver"><option value="">— Aucune —</option></select></div>
+      </div>
+      <div class="field">
+        <label>Moyen de paiement</label>
+        <select id="e-payment">
+          <option value="cash">Espèces</option>
+          <option value="mobile_money">Mobile money</option>
+          <option value="bank_transfer">Virement bancaire</option>
+          <option value="card">Carte bancaire</option>
+          <option value="other">Autre</option>
+        </select>
+      </div>
+      <div class="field"><label>Justificatif / photo (optionnel)</label><input id="e-photo" type="file" accept="image/*,.pdf"></div>
+      <div class="field"><label>Commentaire</label><textarea id="e-notes" rows="2"></textarea></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-dark" onclick="closeExpenseModal()">Annuler</button>
+        <button type="submit" class="btn btn-gold" id="expense-submit-btn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="vehicle-modal" class="modal-overlay">
   <div class="modal">
     <h3 id="vehicle-modal-title">Ajouter un véhicule</h3>
@@ -276,7 +407,7 @@ h2{font-size:38px}
         <div class="field"><label>Expiration carte grise</label><input id="v-carte-grise" type="date"></div>
       </div>
       <div class="field"><label>Expiration visite technique</label><input id="v-visite" type="date"></div>
-      <div class="field"><label>Photo du véhicule</label><input id="v-photo" type="file" accept="image/*"><img id="v-photo-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Photo ou document du véhicule (carte grise, assurance…)</label><input id="v-photo" type="file" accept="image/*,.pdf"><img id="v-photo-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
       <div class="field"><label>Notes</label><textarea id="v-notes" rows="2" placeholder="Optionnel"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeVehicleModal()">Annuler</button>
@@ -298,7 +429,7 @@ h2{font-size:38px}
         <div class="field"><label>Véhicule attitré</label><select id="d-vehicle"><option value="">— Aucun —</option></select></div>
       </div>
       <div class="field"><label>Adresse</label><input id="d-address" placeholder="Optionnel"></div>
-      <div class="field"><label>Photo du permis</label><input id="d-license" type="file" accept="image/*"><img id="d-license-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
+      <div class="field"><label>Photo ou scan du permis</label><input id="d-license" type="file" accept="image/*,.pdf"><img id="d-license-preview" style="display:none; max-width:120px; margin-top:8px; border-radius:3px;"></div>
       <div class="field"><label>Notes</label><textarea id="d-notes" rows="2" placeholder="Optionnel"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeDriverModal()">Annuler</button>
@@ -325,6 +456,20 @@ h2{font-size:38px}
         <div class="field"><label>Coût (Ar)</label><input id="f-fuel-cost" type="number" min="0" required></div>
         <div class="field"><label>Litres</label><input id="f-fuel-liters" type="number" min="0" step="0.1"></div>
         <div class="field"><label>Km au plein</label><input id="f-fuel-km" type="number" min="0"></div>
+        <div class="field">
+          <label>Station-service</label>
+          <select id="f-fuel-station"><option>Galana</option><option>Shell</option><option>Jovena</option><option>Autre</option></select>
+        </div>
+        <div class="field"><label>Quartier / adresse de la station</label><input id="f-fuel-address" placeholder="Ex : Analakely"></div>
+        <div class="field" style="grid-column:1/3;">
+          <label>Qui a payé</label>
+          <select id="f-fuel-paidby">
+            <option value="cash_driver">Espèces (chauffeur)</option>
+            <option value="mobile_money">Mobile money</option>
+            <option value="direction">Payé par la direction</option>
+            <option value="client">Payé par le client (mise à disposition)</option>
+          </select>
+        </div>
         <div class="field" style="grid-column:1/3;"><button type="submit" class="btn btn-gold" style="width:100%;">+ Ajouter un plein</button></div>
       </form>
       <div id="fuel-list" class="day-detail" style="padding:16px;"></div>
@@ -441,6 +586,18 @@ h2{font-size:38px}
           </select>
         </div>
       </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Statut de paiement</label>
+          <select id="a-payment-status">
+            <option value="unpaid">Non payé</option>
+            <option value="partial">Partiellement payé</option>
+            <option value="paid">Payé</option>
+            <option value="credit">Crédit en cours</option>
+          </select>
+        </div>
+        <div class="field"><label>Montant encaissé (Ar)</label><input id="a-amount-paid" type="number" min="0" placeholder="Laisser vide si non payé"></div>
+      </div>
       <div class="field"><label>Notes internes</label><textarea id="a-notes" rows="2" placeholder="Ex : véhicule, marque, plaque, remarques…"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeAddModal()">Annuler</button>
@@ -475,6 +632,18 @@ h2{font-size:38px}
           <option value="confirmed">Confirmée</option>
         </select>
       </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Statut de paiement</label>
+          <select id="m-payment-status">
+            <option value="unpaid">Non payé</option>
+            <option value="partial">Partiellement payé</option>
+            <option value="paid">Payé</option>
+            <option value="credit">Crédit en cours</option>
+          </select>
+        </div>
+        <div class="field"><label>Montant encaissé (Ar)</label><input id="m-amount-paid" type="number" min="0"></div>
+      </div>
       <div class="field"><label>Notes internes</label><textarea id="m-notes" rows="3" placeholder="Ex : véhicule, marque, plaque, remarques…"></textarea></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-dark" onclick="closeManageModal()">Annuler</button>
@@ -503,6 +672,21 @@ h2{font-size:38px}
   const RATES = { Comfort: 4000, Premium: 5000 };
   const MIN_FARE = { Comfort: 20000, Premium: 25000 };
   const SOURCE_LABEL = { site:"Site web", whatsapp:"WhatsApp", phone:"Téléphone" };
+  const PAYMENT_STATUS_LABEL = { unpaid:'Non payé', partial:'Partiellement payé', paid:'Payé', credit:'Crédit en cours' };
+
+  function effectivePaymentStatus(r){
+    if (r.paymentStatus) return r.paymentStatus;
+    return r.status === 'confirmed' ? 'paid' : 'unpaid';
+  }
+  function effectiveAmountPaid(r){
+    if (r.amountPaid !== null && r.amountPaid !== undefined) return r.amountPaid;
+    return effectivePaymentStatus(r) === 'paid' ? (r.fareAmount||0) : 0;
+  }
+  function tresorBucket(pm, isExpense){
+    if (pm === 'mobile_money') return 'mobile_money';
+    if (isExpense) return pm === 'cash' ? 'cash' : 'other';
+    return pm === 'cash_driver' ? 'cash' : 'other';
+  }
 
   let requests = [];
   let activeFilter = "all";
@@ -575,6 +759,8 @@ h2{font-size:38px}
     fillVehicleSelect(document.getElementById('m-vehicle'), r.assignedVehicleId||'');
     document.getElementById('m-payment').value = r.paymentMethod || '';
     document.getElementById('m-status').value = r.status || 'new';
+    document.getElementById('m-payment-status').value = effectivePaymentStatus(r);
+    document.getElementById('m-amount-paid').value = effectiveAmountPaid(r);
     document.getElementById('m-notes').value = r.notes || '';
     document.getElementById('manage-error').style.display = 'none';
     document.getElementById('manage-modal').classList.add('show');
@@ -592,6 +778,8 @@ h2{font-size:38px}
         assignedVehicleId: document.getElementById('m-vehicle').value || null,
         paymentMethod: document.getElementById('m-payment').value || null,
         status: document.getElementById('m-status').value,
+        paymentStatus: document.getElementById('m-payment-status').value,
+        amountPaid: parseFloat(document.getElementById('m-amount-paid').value) || 0,
         notes: document.getElementById('m-notes').value.trim()
       });
       closeManageModal();
@@ -601,6 +789,14 @@ h2{font-size:38px}
       errBox.style.display = 'block';
     }
     btn.disabled = false; btn.textContent = 'Enregistrer';
+  });
+
+  document.getElementById('m-payment-status').addEventListener('change', function(){
+    if (this.value === 'paid'){
+      var r = requests.find(function(x){ return x.id === managingId; });
+      var amtField = document.getElementById('m-amount-paid');
+      if (r && !amtField.value) amtField.value = r.fareAmount || 0;
+    }
   });
 
   function playSound(){
@@ -633,15 +829,20 @@ h2{font-size:38px}
     document.getElementById("view-reservations").classList.toggle("active", tab==="reservations");
     document.getElementById("view-stats").classList.toggle("active", tab==="stats");
     document.getElementById("view-fleet").classList.toggle("active", tab==="fleet");
+    document.getElementById("view-finances").classList.toggle("active", tab==="finances");
     if(tab==="stats") renderStats();
+    if(tab==="finances") renderFinanceTab();
   }));
 
   // ---------- Fleet: vehicles + drivers ----------
   var vehicles = [];
   var drivers = [];
-  var vehiclesUnsub = null, driversUnsub = null;
+  var expenses = [];
+  var vehiclesUnsub = null, driversUnsub = null, expensesUnsub = null;
   var editingVehicleId = null, editingDriverId = null;
   var MAINTENANCE_INTERVAL_KM = 7000;
+  var EXPENSE_CATEGORY_LABEL = { fuel:'⛽ Carburant', maintenance:'🔧 Entretien', salary:'👨‍💼 Salaire / chauffeur', other:'📄 Autre' };
+  var PAYMENT_METHOD_LABEL = { cash:'Espèces', mobile_money:'Mobile money', bank_transfer:'Virement bancaire', card:'Carte bancaire', other:'Autre' };
 
   function daysUntil(dateStr){
     if (!dateStr) return null;
@@ -660,6 +861,36 @@ h2{font-size:38px}
   }
 
   function vehicleLabel(v){ return v.brand + ' ' + v.model + ' — ' + v.plate; }
+
+  // ---------- File display: thumbnail / PDF chip / broken-file fallback ----------
+  function isPdfUrl(url){ return /\.pdf(\?|$)/i.test(url.split('?')[0]) || /\.pdf/i.test(url); }
+  function fileChip(url){
+    if (!url) return '<span style="color:var(--muted); font-size:11.5px;">Aucun document</span>';
+    if (isPdfUrl(url)) return '<button class="file-chip" onclick="window.open(\''+url+'\',\'_blank\')">📄 Voir le document (PDF)</button>';
+    return '<img src="'+url+'" class="file-thumb" onclick="openLightbox(\''+url+'\')" onerror="fileImgError(this,\''+url+'\')">';
+  }
+  window.fileImgError = function(img, url){
+    var btn = document.createElement('button');
+    btn.className = 'file-chip';
+    btn.textContent = '⚠ Fichier non affichable — cliquer pour ouvrir';
+    btn.onclick = function(){ window.open(url, '_blank'); };
+    img.replaceWith(btn);
+  };
+  window.openLightbox = function(url){
+    document.getElementById('lightbox-img').src = url;
+    document.getElementById('lightbox').classList.add('show');
+  };
+  window.closeLightbox = function(){ document.getElementById('lightbox').classList.remove('show'); };
+
+  function checkFileFormat(file){
+    if (!file) return true;
+    var name = file.name.toLowerCase();
+    if (name.endsWith('.heic') || name.endsWith('.heif')){
+      alert("Ce fichier est au format HEIC (typique des photos iPhone), qui ne s'affiche pas dans les navigateurs.\n\nDeux solutions rapides :\n1. Sur l'iPhone : Réglages → Appareil photo → Formats → choisir \"Le plus compatible\"\n2. Ou envoyer la photo via WhatsApp/Email d'abord (ça la convertit automatiquement en JPEG), puis l'uploader depuis là.");
+      return false;
+    }
+    return true;
+  }
 
   function fillDriverSelect(sel, selectedId){
     sel.innerHTML = '<option value="">— Aucun —</option>' + drivers.map(function(d){
@@ -685,7 +916,7 @@ h2{font-size:38px}
       var alerts = maintAlert + docAlertBadge('Assurance', v.insuranceExpiry) + docAlertBadge('Carte grise', v.carteGriseExpiry) + docAlertBadge('Visite technique', v.visiteExpiry);
       return '<div class="vcard">' +
         '<div class="vcard-top">' +
-          (v.photoUrl ? '<img src="'+v.photoUrl+'" style="width:64px; height:64px; object-fit:cover; border-radius:3px; margin-right:12px;">' : '') +
+          (v.photoUrl ? fileChip(v.photoUrl) : '') +
           '<div style="flex:1;"><strong style="font-size:17px;">' + v.brand + ' ' + v.model + '</strong><div style="color:var(--muted); font-size:12.5px;">' + v.plate + ' · ' + (v.tier||'Comfort') + (v.color ? ' · ' + v.color : '') + '</div></div>' +
           '<span class="vstatus ' + v.status + '">' + vstatusLabel(v.status) + '</span>' +
         '</div>' +
@@ -699,6 +930,7 @@ h2{font-size:38px}
         '<div class="actions" style="justify-content:flex-start;">' +
           '<button onclick="editVehicle(\'' + v.id + '\')">✎ Modifier</button>' +
           '<button onclick="openHistoryModal(\'' + v.id + '\')">🗂 Historique</button>' +
+          '<button onclick="printVehicleSheet(\'' + v.id + '\')">🖨 Imprimer</button>' +
           (isDirector ? '<button class="danger" onclick="deleteVehicle(\'' + v.id + '\')">🗑</button>' : '') +
         '</div>' +
       '</div>';
@@ -715,13 +947,14 @@ h2{font-size:38px}
       var vehicle = vehicles.find(function(v){ return v.id === d.assignedVehicleId; });
       return '<div class="vcard">' +
         '<div class="vcard-top">' +
-          (d.licensePhotoUrl ? '<img src="'+d.licensePhotoUrl+'" style="width:64px; height:64px; object-fit:cover; border-radius:3px; margin-right:12px;">' : '') +
+          (d.licensePhotoUrl ? fileChip(d.licensePhotoUrl) : '') +
           '<div><strong style="font-size:17px;">' + d.name + '</strong><div style="color:var(--muted); font-size:12.5px;">' + d.phone + (d.address ? ' · ' + d.address : '') + '</div></div>' +
         '</div>' +
         '<div style="font-size:13px; color:var(--muted);">Véhicule attitré : <strong style="color:var(--text);">' + (vehicle ? vehicleLabel(vehicle) : '—') + '</strong></div>' +
         (d.notes ? '<div style="font-size:12.5px; color:var(--muted); border-top:1px solid var(--border); padding-top:10px;">' + d.notes + '</div>' : '') +
         '<div class="actions" style="justify-content:flex-start;">' +
           '<button onclick="editDriver(\'' + d.id + '\')">✎ Modifier</button>' +
+          '<button onclick="printDriverSheet(\'' + d.id + '\')">🖨 Imprimer</button>' +
           (isDirector ? '<button class="danger" onclick="deleteDriver(\'' + d.id + '\')">🗑</button>' : '') +
         '</div>' +
       '</div>';
@@ -732,10 +965,18 @@ h2{font-size:38px}
     vehiclesUnsub = onSnapshot(collection(db,'vehicles'), function(snap){
       vehicles = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderVehicles(); renderDrivers();
+      if (document.getElementById('view-finances').classList.contains('active')) renderFinanceTab();
     });
     driversUnsub = onSnapshot(collection(db,'drivers'), function(snap){
       drivers = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderVehicles(); renderDrivers();
+      if (document.getElementById('view-finances').classList.contains('active')) renderFinanceTab();
+    });
+    expensesUnsub = onSnapshot(query(collection(db,'expenses'), orderBy('date','desc')), function(snap){
+      expenses = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderVehicles();
+      if (historyVehicleId){ renderFuelList(); renderMaintList(); }
+      if (document.getElementById('view-finances').classList.contains('active')) renderFinanceTab();
     });
   }
 
@@ -744,6 +985,7 @@ h2{font-size:38px}
     document.getElementById('vehicle-modal-title').textContent = 'Ajouter un véhicule';
     document.getElementById('vehicle-form').reset();
     document.getElementById('vehicle-error').style.display = 'none';
+    document.getElementById('v-photo-preview').style.display = 'none';
     fillDriverSelect(document.getElementById('v-driver'), '');
     document.getElementById('vehicle-modal').classList.add('show');
   };
@@ -767,6 +1009,9 @@ h2{font-size:38px}
     document.getElementById('v-carte-grise').value = v.carteGriseExpiry||'';
     document.getElementById('v-visite').value = v.visiteExpiry||'';
     document.getElementById('v-notes').value = v.notes||'';
+    var preview = document.getElementById('v-photo-preview');
+    if (v.photoUrl && !isPdfUrl(v.photoUrl)){ preview.src = v.photoUrl; preview.style.display = 'block'; }
+    else { preview.style.display = 'none'; }
     document.getElementById('vehicle-error').style.display = 'none';
     document.getElementById('vehicle-modal').classList.add('show');
   };
@@ -780,6 +1025,17 @@ h2{font-size:38px}
     await uploadBytes(r, file);
     return await getDownloadURL(r);
   }
+
+  document.getElementById('v-photo').addEventListener('change', function(e){
+    var f = e.target.files[0];
+    var preview = document.getElementById('v-photo-preview');
+    if (f && f.type.indexOf('image') === 0){ preview.src = URL.createObjectURL(f); preview.style.display = 'block'; }
+  });
+  document.getElementById('d-license').addEventListener('change', function(e){
+    var f = e.target.files[0];
+    var preview = document.getElementById('d-license-preview');
+    if (f && f.type.indexOf('image') === 0){ preview.src = URL.createObjectURL(f); preview.style.display = 'block'; }
+  });
 
   document.getElementById('vehicle-form').addEventListener('submit', async function(e){
     e.preventDefault();
@@ -809,8 +1065,9 @@ h2{font-size:38px}
         vId = ref.id;
       }
       var photoFile = document.getElementById('v-photo').files[0];
-      if (photoFile){
-        var url = await uploadPhoto(photoFile, 'vehicles/' + vId + '/photo.jpg');
+      if (photoFile && checkFileFormat(photoFile)){
+        var ext = photoFile.name.split('.').pop().toLowerCase();
+        var url = await uploadPhoto(photoFile, 'vehicles/' + vId + '/photo.' + ext);
         payload.photoUrl = url;
       }
       await updateDoc(doc(db,'vehicles',vId), payload);
@@ -828,6 +1085,7 @@ h2{font-size:38px}
     document.getElementById('driver-modal-title').textContent = 'Ajouter un chauffeur';
     document.getElementById('driver-form').reset();
     document.getElementById('driver-error').style.display = 'none';
+    document.getElementById('d-license-preview').style.display = 'none';
     fillVehicleSelect(document.getElementById('d-vehicle'), '');
     document.getElementById('driver-modal').classList.add('show');
   };
@@ -842,12 +1100,91 @@ h2{font-size:38px}
     fillVehicleSelect(document.getElementById('d-vehicle'), d.assignedVehicleId||'');
     document.getElementById('d-address').value = d.address||'';
     document.getElementById('d-notes').value = d.notes||'';
+    var preview2 = document.getElementById('d-license-preview');
+    if (d.licensePhotoUrl && !isPdfUrl(d.licensePhotoUrl)){ preview2.src = d.licensePhotoUrl; preview2.style.display = 'block'; }
+    else { preview2.style.display = 'none'; }
     document.getElementById('driver-error').style.display = 'none';
     document.getElementById('driver-modal').classList.add('show');
   };
   window.deleteDriver = async function(id){
     if (!confirm('Supprimer ce chauffeur ?')) return;
     try{ await deleteDoc(doc(db,'drivers',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+
+  // ---------- Print A4 sheets ----------
+  function printWindow(title, bodyHtml){
+    var win = window.open('', '_blank');
+    win.document.write(
+      '<html><head><title>' + title + '</title><meta charset="utf-8">' +
+      '<style>' +
+        'body{font-family:Arial,Helvetica,sans-serif; padding:36px; color:#18161a; max-width:760px; margin:0 auto;}' +
+        'h1{font-size:22px; margin:0 0 4px; color:#141112;}' +
+        '.sub{color:#8a857a; font-size:12.5px; margin-bottom:22px;}' +
+        'table{width:100%; border-collapse:collapse; margin-top:6px;}' +
+        'td{padding:9px 6px; border-bottom:1px solid #e6e1d6; font-size:13px; vertical-align:top;}' +
+        'td:first-child{color:#8a857a; width:220px;}' +
+        '.photo{max-width:220px; border-radius:4px; margin:16px 0;}' +
+        '.brand{color:#a3803e; font-weight:bold; font-size:13px; letter-spacing:.04em;}' +
+        '.footer{margin-top:40px; font-size:10.5px; color:#aaa; border-top:1px solid #eee; padding-top:10px;}' +
+        '@media print{ body{padding:16px;} }' +
+      '</style></head><body>' +
+      '<div class="brand">VTC PLUS</div>' + bodyHtml +
+      '<div class="footer">Généré le ' + new Date().toLocaleDateString('fr-FR') + ' à ' + new Date().toLocaleTimeString('fr-FR') + '</div>' +
+      '</body></html>'
+    );
+    win.document.close();
+    setTimeout(function(){ win.focus(); win.print(); }, 350);
+  }
+
+  window.printVehicleSheet = function(id){
+    var v = vehicles.find(function(x){ return x.id === id; });
+    if (!v) return;
+    var driver = drivers.find(function(d){ return d.id === v.assignedDriverId; });
+    var nextKm = (v.lastMaintenanceKm||0) + MAINTENANCE_INTERVAL_KM;
+    var vFuel = expenses.filter(function(x){ return x.vehicleId===id && x.category==='fuel'; });
+    var vMaint = expenses.filter(function(x){ return x.vehicleId===id && x.category==='maintenance'; });
+    var fuelTotal = vFuel.reduce(function(s,x){ return s+(x.amount||0); },0);
+    var maintTotal = vMaint.reduce(function(s,x){ return s+(x.amount||0); },0);
+    var rows = [
+      ['Marque / Modèle', v.brand + ' ' + v.model],
+      ['Plaque d\'immatriculation', v.plate],
+      ['Couleur', v.color || '—'],
+      ['Numéro de châssis', v.chassis || '—'],
+      ['Formule', v.tier || 'Comfort'],
+      ['Statut', vstatusLabel(v.status)],
+      ['Kilométrage actuel', (v.km||0).toLocaleString('fr-FR') + ' km'],
+      ['Prochain entretien prévu', nextKm.toLocaleString('fr-FR') + ' km'],
+      ['Chauffeur affecté', driver ? driver.name + ' — ' + driver.phone : '—'],
+      ['Expiration assurance', v.insuranceExpiry ? isoToDisplay(v.insuranceExpiry) : '—'],
+      ['Expiration carte grise', v.carteGriseExpiry ? isoToDisplay(v.carteGriseExpiry) : '—'],
+      ['Expiration visite technique', v.visiteExpiry ? isoToDisplay(v.visiteExpiry) : '—'],
+      ['Total carburant enregistré', fuelTotal ? fmtAr(fuelTotal) + ' (' + vFuel.length + ' plein(s))' : '—'],
+      ['Total entretien enregistré', maintTotal ? fmtAr(maintTotal) + ' (' + vMaint.length + ' intervention(s))' : '—'],
+      ['Notes', v.notes || '—']
+    ];
+    var html = '<h1>Fiche véhicule</h1><div class="sub">' + v.brand + ' ' + v.model + ' — ' + v.plate + '</div>' +
+      (v.photoUrl && !isPdfUrl(v.photoUrl) ? '<img class="photo" src="' + v.photoUrl + '">' : '') +
+      '<table>' + rows.map(function(r){ return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
+    printWindow('Fiche véhicule — ' + v.plate, html);
+  };
+
+  window.printDriverSheet = function(id){
+    var d = drivers.find(function(x){ return x.id === id; });
+    if (!d) return;
+    var vehicle = vehicles.find(function(v){ return v.id === d.assignedVehicleId; });
+    var driverRides = requests.filter(function(r){ return r.assignedVehicleId && vehicle && r.assignedVehicleId === vehicle.id; });
+    var rows = [
+      ['Nom complet', d.name],
+      ['Téléphone', d.phone],
+      ['Adresse', d.address || '—'],
+      ['Véhicule attitré', vehicle ? vehicleLabel(vehicle) : '—'],
+      ['Nombre de courses (véhicule attitré)', String(driverRides.length)],
+      ['Notes', d.notes || '—']
+    ];
+    var html = '<h1>Fiche chauffeur</h1><div class="sub">' + d.name + '</div>' +
+      (d.licensePhotoUrl && !isPdfUrl(d.licensePhotoUrl) ? '<img class="photo" src="' + d.licensePhotoUrl + '">' : '') +
+      '<table>' + rows.map(function(r){ return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</table>';
+    printWindow('Fiche chauffeur — ' + d.name, html);
   };
 
   document.getElementById('driver-form').addEventListener('submit', async function(e){
@@ -869,8 +1206,9 @@ h2{font-size:38px}
         dId = ref2.id;
       }
       var licenseFile = document.getElementById('d-license').files[0];
-      if (licenseFile){
-        var url2 = await uploadPhoto(licenseFile, 'drivers/' + dId + '/license.jpg');
+      if (licenseFile && checkFileFormat(licenseFile)){
+        var ext2 = licenseFile.name.split('.').pop().toLowerCase();
+        var url2 = await uploadPhoto(licenseFile, 'drivers/' + dId + '/license.' + ext2);
         payload.licensePhotoUrl = url2;
       }
       await updateDoc(doc(db,'drivers',dId), payload);
@@ -883,10 +1221,10 @@ h2{font-size:38px}
     btn.disabled = false; btn.textContent = 'Enregistrer';
   });
 
-  // ---------- Vehicle history: fuel / maintenance / incidents ----------
+  // ---------- Vehicle history: fuel / maintenance / incidents (reads from shared 'expenses' + 'incidents') ----------
   var historyVehicleId = null;
-  var fuelLogs = [], maintLogs = [], incidents = [];
-  var fuelUnsub = null, maintUnsub = null, incidentUnsub = null;
+  var incidents = [];
+  var incidentUnsub = null;
 
   window.setHistoryTab = function(tab){
     ['fuel','maint','incident'].forEach(function(t){
@@ -896,10 +1234,8 @@ h2{font-size:38px}
   };
 
   function stopHistoryListeners(){
-    if (fuelUnsub) fuelUnsub();
-    if (maintUnsub) maintUnsub();
     if (incidentUnsub) incidentUnsub();
-    fuelUnsub = maintUnsub = incidentUnsub = null;
+    incidentUnsub = null;
   }
 
   window.openHistoryModal = function(vehicleId){
@@ -912,15 +1248,8 @@ h2{font-size:38px}
     document.getElementById('f-inc-date').value = todayISO();
     setHistoryTab('fuel');
     stopHistoryListeners();
+    renderFuelList(); renderMaintList();
 
-    fuelUnsub = onSnapshot(query(collection(db,'fuel_logs'), orderBy('date','desc')), function(snap){
-      fuelLogs = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
-      renderFuelList();
-    });
-    maintUnsub = onSnapshot(query(collection(db,'maintenance_logs'), orderBy('date','desc')), function(snap){
-      maintLogs = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
-      renderMaintList();
-    });
     incidentUnsub = onSnapshot(query(collection(db,'incidents'), orderBy('date','desc')), function(snap){
       incidents = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
       renderIncidentList();
@@ -935,38 +1264,50 @@ h2{font-size:38px}
   };
 
   function renderFuelList(){
-    var total = fuelLogs.reduce(function(s,f){ return s + (f.cost||0); }, 0);
+    if (!historyVehicleId) return;
+    var fuelLogs = expenses.filter(function(x){ return x.vehicleId === historyVehicleId && x.category === 'fuel'; });
+    var total = fuelLogs.reduce(function(s,f){ return s + (f.amount||0); }, 0);
     document.getElementById('fuel-total').textContent = fuelLogs.length + ' plein(s) — total ' + fmtAr(total);
     var box = document.getElementById('fuel-list');
     box.innerHTML = fuelLogs.length ? fuelLogs.map(function(f){
-      return '<div class="day-row"><span>' + isoToDisplay(f.date) + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.km ? ' · ' + f.km.toLocaleString('fr-FR') + ' km' : '') + '</span><span>' + fmtAr(f.cost||0) + '</span></div>';
+      return '<div class="day-row"><span>' + isoToDisplay(f.date) + (f.station ? ' · ' + f.station : '') + (f.stationAddress ? ' (' + f.stationAddress + ')' : '') + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.kmAtFillup ? ' · ' + f.kmAtFillup.toLocaleString('fr-FR') + ' km' : '') + '<br><span style="color:var(--muted);">' + (FUEL_PAID_BY_LABEL[f.paidBy]||'') + '</span></span><span>' + fmtAr(f.amount||0) + '</span></div>';
     }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun plein enregistré.</span></div>';
   }
   function renderMaintList(){
-    var total = maintLogs.reduce(function(s,m){ return s + (m.cost||0); }, 0);
+    if (!historyVehicleId) return;
+    var maintLogs = expenses.filter(function(x){ return x.vehicleId === historyVehicleId && x.category === 'maintenance'; });
+    var total = maintLogs.reduce(function(s,m){ return s + (m.amount||0); }, 0);
     document.getElementById('maint-total').textContent = maintLogs.length + ' entretien(s) — total ' + fmtAr(total);
     var box = document.getElementById('maint-list');
     box.innerHTML = maintLogs.length ? maintLogs.map(function(m){
-      return '<div class="day-row"><span>' + isoToDisplay(m.date) + ' · ' + m.type + (m.garage ? ' · ' + m.garage : '') + ' · ' + (m.km||0).toLocaleString('fr-FR') + ' km</span><span>' + fmtAr(m.cost||0) + '</span></div>';
+      return '<div class="day-row"><span>' + isoToDisplay(m.date) + ' · ' + m.maintType + (m.garage ? ' · ' + m.garage : '') + ' · ' + (m.kmAtService||0).toLocaleString('fr-FR') + ' km</span><span>' + fmtAr(m.amount||0) + '</span></div>';
     }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun entretien enregistré.</span></div>';
   }
   function renderIncidentList(){
     var box = document.getElementById('incident-list');
     box.innerHTML = incidents.length ? incidents.map(function(i){
-      return '<div class="day-row" style="align-items:center;"><span>' + isoToDisplay(i.date) + ' — ' + i.description + '</span>' + (i.photoUrl ? '<img src="'+i.photoUrl+'" style="width:40px; height:40px; object-fit:cover; border-radius:3px;">' : '') + '</div>';
+      return '<div class="day-row" style="align-items:center;"><span>' + isoToDisplay(i.date) + ' — ' + i.description + '</span>' + (i.photoUrl ? fileChip(i.photoUrl) : '') + '</div>';
     }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun incident signalé.</span></div>';
   }
+
+  var FUEL_PAID_BY_LABEL = { cash_driver:'Payé en espèces (chauffeur)', mobile_money:'Payé en mobile money', direction:'Payé par la direction', client:'Payé par le client (mise à disposition)' };
 
   document.getElementById('fuel-form').addEventListener('submit', async function(e){
     e.preventDefault();
     if (!historyVehicleId) return;
     try{
-      await addDoc(collection(db,'fuel_logs'), {
+      await addDoc(collection(db,'expenses'), {
         vehicleId: historyVehicleId,
+        category: 'fuel',
         date: document.getElementById('f-fuel-date').value,
-        cost: parseFloat(document.getElementById('f-fuel-cost').value) || 0,
+        amount: parseFloat(document.getElementById('f-fuel-cost').value) || 0,
         liters: parseFloat(document.getElementById('f-fuel-liters').value) || null,
-        km: parseFloat(document.getElementById('f-fuel-km').value) || null,
+        kmAtFillup: parseFloat(document.getElementById('f-fuel-km').value) || null,
+        station: document.getElementById('f-fuel-station').value,
+        stationAddress: document.getElementById('f-fuel-address').value.trim(),
+        paidBy: document.getElementById('f-fuel-paidby').value,
+        paymentMethod: document.getElementById('f-fuel-paidby').value === 'mobile_money' ? 'mobile_money' : 'cash',
+        description: 'Carburant — ' + document.getElementById('f-fuel-station').value,
         createdAt: serverTimestamp()
       });
       document.getElementById('fuel-form').reset();
@@ -979,13 +1320,16 @@ h2{font-size:38px}
     if (!historyVehicleId) return;
     try{
       var km = parseFloat(document.getElementById('f-maint-km').value) || 0;
-      await addDoc(collection(db,'maintenance_logs'), {
+      await addDoc(collection(db,'expenses'), {
         vehicleId: historyVehicleId,
+        category: 'maintenance',
         date: document.getElementById('f-maint-date').value,
-        cost: parseFloat(document.getElementById('f-maint-cost').value) || 0,
-        km: km,
-        type: document.getElementById('f-maint-type').value.trim(),
+        amount: parseFloat(document.getElementById('f-maint-cost').value) || 0,
+        kmAtService: km,
+        maintType: document.getElementById('f-maint-type').value.trim(),
         garage: document.getElementById('f-maint-garage').value.trim(),
+        paymentMethod: 'cash',
+        description: 'Entretien — ' + document.getElementById('f-maint-type').value.trim(),
         createdAt: serverTimestamp()
       });
       if (document.getElementById('f-maint-update-km').checked){
@@ -1010,8 +1354,9 @@ h2{font-size:38px}
         createdAt: serverTimestamp()
       });
       var photoFile = document.getElementById('f-inc-photo').files[0];
-      if (photoFile){
-        var url = await uploadPhoto(photoFile, 'incidents/' + ref.id + '.jpg');
+      if (photoFile && checkFileFormat(photoFile)){
+        var extInc = photoFile.name.split('.').pop().toLowerCase();
+        var url = await uploadPhoto(photoFile, 'incidents/' + ref.id + '.' + extInc);
         await updateDoc(doc(db,'incidents',ref.id), { photoUrl: url });
       }
       document.getElementById('incident-form').reset();
@@ -1019,6 +1364,353 @@ h2{font-size:38px}
     }catch(err){ console.error(err); alert("Impossible d'enregistrer cet incident pour le moment."); }
     btn.disabled = false; btn.textContent = '+ Signaler un incident';
   });
+
+  // ---------- Finances (Dépenses / Trésorerie / Récap) ----------
+  var activeFinanceTab = 'depenses';
+  var activeExpenseFilter = 'all';
+  var activeRecapPeriod = 'today';
+
+  window.setFinanceTab = function(tab){
+    activeFinanceTab = tab;
+    document.getElementById('fintab-depenses').classList.toggle('active', tab==='depenses');
+    document.getElementById('fintab-tresorerie').classList.toggle('active', tab==='tresorerie');
+    document.getElementById('fintab-recap').classList.toggle('active', tab==='recap');
+    document.getElementById('finpanel-depenses').style.display = tab==='depenses' ? 'block' : 'none';
+    document.getElementById('finpanel-tresorerie').style.display = tab==='tresorerie' ? 'block' : 'none';
+    document.getElementById('finpanel-recap').style.display = tab==='recap' ? 'block' : 'none';
+    renderFinanceTab();
+  };
+
+  function renderFinanceTab(){
+    if (activeFinanceTab === 'depenses') renderExpensesTab();
+    else if (activeFinanceTab === 'tresorerie') renderTresorerieTab();
+    else renderRecapTab();
+  }
+
+  // ---- Dépenses ----
+  window.onExpenseCategoryChange = function(){
+    var cat = document.getElementById('e-category').value;
+    document.getElementById('e-fuel-fields').style.display = cat === 'fuel' ? 'grid' : 'none';
+    document.getElementById('e-maint-fields').style.display = cat === 'maintenance' ? 'grid' : 'none';
+  };
+
+  window.openExpenseModal = function(){
+    document.getElementById('expense-form').reset();
+    document.getElementById('e-date').value = todayISO();
+    document.getElementById('e-category').value = 'fuel';
+    onExpenseCategoryChange();
+    fillVehicleSelect(document.getElementById('e-vehicle'), '');
+    fillDriverSelect(document.getElementById('e-driver'), '');
+    document.getElementById('expense-error').style.display = 'none';
+    document.getElementById('expense-modal').classList.add('show');
+  };
+  window.closeExpenseModal = function(){ document.getElementById('expense-modal').classList.remove('show'); };
+
+  document.getElementById('expense-form').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var errBox = document.getElementById('expense-error'); errBox.style.display = 'none';
+    var btn = document.getElementById('expense-submit-btn');
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
+    try{
+      var cat = document.getElementById('e-category').value;
+      var payload = {
+        category: cat,
+        date: document.getElementById('e-date').value,
+        amount: parseFloat(document.getElementById('e-amount').value) || 0,
+        description: document.getElementById('e-description').value.trim(),
+        vehicleId: document.getElementById('e-vehicle').value || null,
+        driverId: document.getElementById('e-driver').value || null,
+        paymentMethod: document.getElementById('e-payment').value,
+        notes: document.getElementById('e-notes').value.trim(),
+        createdAt: serverTimestamp()
+      };
+      if (cat === 'fuel'){
+        payload.station = document.getElementById('e-station').value;
+        payload.stationAddress = document.getElementById('e-station-address').value.trim();
+      }
+      if (cat === 'maintenance'){
+        payload.maintType = document.getElementById('e-maint-type').value.trim();
+        payload.garage = document.getElementById('e-garage').value.trim();
+      }
+      var ref = await addDoc(collection(db,'expenses'), payload);
+      var photoFile = document.getElementById('e-photo').files[0];
+      if (photoFile && checkFileFormat(photoFile)){
+        var ext = photoFile.name.split('.').pop().toLowerCase();
+        var url = await uploadPhoto(photoFile, 'expenses/' + ref.id + '.' + ext);
+        await updateDoc(doc(db,'expenses',ref.id), { photoUrl: url });
+      }
+      closeExpenseModal();
+    }catch(err){
+      console.error(err);
+      errBox.textContent = "Impossible d'enregistrer cette dépense pour le moment.";
+      errBox.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  });
+
+  window.deleteExpense = async function(id){
+    if (!confirm('Supprimer cette dépense ?')) return;
+    try{ await deleteDoc(doc(db,'expenses',id)); }catch(e){ alert('Seul le compte direction peut supprimer.'); }
+  };
+
+  document.querySelectorAll('.filter[data-expcat]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.filter[data-expcat]').forEach(function(x){ x.classList.remove('active'); });
+      b.classList.add('active');
+      activeExpenseFilter = b.dataset.expcat;
+      renderExpensesTab();
+    });
+  });
+
+  function renderExpensesTab(){
+    var list = expenses.filter(function(x){ return activeExpenseFilter==='all' || x.category===activeExpenseFilter; });
+    var total = list.reduce(function(s,x){ return s+(x.amount||0); },0);
+    var byPay = {};
+    list.forEach(function(x){ var k=x.paymentMethod||'other'; byPay[k]=(byPay[k]||0)+(x.amount||0); });
+    document.getElementById('expense-stats').innerHTML =
+      '<div class="stat"><span>Total dépenses</span><strong>'+fmtAr(total)+'</strong></div>' +
+      '<div class="stat"><span>Nombre</span><strong>'+list.length+'</strong></div>' +
+      '<div class="stat"><span>Espèces</span><strong>'+fmtAr(byPay.cash||0)+'</strong></div>' +
+      '<div class="stat"><span>Mobile money</span><strong>'+fmtAr(byPay.mobile_money||0)+'</strong></div>';
+
+    var box = document.getElementById('expenses-list');
+    if (!list.length){ box.innerHTML = '<div class="empty">Aucune dépense dans cette catégorie.</div>'; return; }
+    var sorted = list.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+    box.innerHTML = sorted.map(function(x){
+      var veh = vehicles.find(function(v){ return v.id===x.vehicleId; });
+      var drv = drivers.find(function(d){ return d.id===x.driverId; });
+      return '<div class="request" style="grid-template-columns:.7fr 1.5fr .8fr .9fr auto;">' +
+        '<div><small>DATE</small><strong>'+isoToDisplay(x.date)+'</strong></div>' +
+        '<div><small>DESCRIPTION</small><strong>'+(x.description||'—')+'</strong>' +
+          (veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+vehicleLabel(veh)+'</span>':'') +
+          (drv?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+drv.name+'</span>':'') +
+        '</div>' +
+        '<div><small>CATÉGORIE</small><span class="source-tag">'+(EXPENSE_CATEGORY_LABEL[x.category]||x.category)+'</span></div>' +
+        '<div><small>PAIEMENT</small><span class="source-tag">'+(PAYMENT_METHOD_LABEL[x.paymentMethod]||'—')+'</span><br><strong style="display:block; margin-top:4px;">'+fmtAr(x.amount||0)+'</strong></div>' +
+        '<div class="actions">' + (x.photoUrl ? fileChip(x.photoUrl) : '') + (isDirector?'<button class="danger" onclick="deleteExpense(\''+x.id+'\')">🗑</button>':'') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ---- Trésorerie ----
+  document.getElementById('tresor-date').value = todayISO();
+  document.getElementById('tresor-date').addEventListener('change', renderTresorerieTab);
+
+  function renderTresorerieTab(){
+    var dateVal = document.getElementById('tresor-date').value || todayISO();
+    var dayReservations = requests.filter(function(r){ return r.date === dateVal; });
+    var dayExpenses = expenses.filter(function(x){ return x.date === dateVal; });
+
+    var rows = [];
+    dayReservations.forEach(function(r){
+      var paid = effectiveAmountPaid(r);
+      if (paid > 0){
+        rows.push({
+          type:'entrée', desc: r.name+' — '+r.pickup+' → '+r.dest,
+          label: PAYMENT_LABEL[r.paymentMethod]||'Non précisé',
+          bucket: tresorBucket(r.paymentMethod, false),
+          entree: paid, sortie: 0
+        });
+      }
+    });
+    dayExpenses.forEach(function(x){
+      rows.push({
+        type:'sortie', desc: x.description||EXPENSE_CATEGORY_LABEL[x.category]||'Dépense',
+        label: PAYMENT_METHOD_LABEL[x.paymentMethod]||'Autre',
+        bucket: tresorBucket(x.paymentMethod, true),
+        entree: 0, sortie: x.amount||0
+      });
+    });
+
+    var entreeCash=0, sortieCash=0, entreeMM=0, sortieMM=0;
+    rows.forEach(function(r){
+      if (r.bucket==='cash'){ entreeCash+=r.entree; sortieCash+=r.sortie; }
+      else if (r.bucket==='mobile_money'){ entreeMM+=r.entree; sortieMM+=r.sortie; }
+    });
+
+    document.getElementById('tresor-stats').innerHTML =
+      '<div class="stat"><span>Espèces reçues</span><strong>'+fmtAr(entreeCash)+'</strong></div>' +
+      '<div class="stat"><span>Espèces dépensées</span><strong>'+fmtAr(sortieCash)+'</strong></div>' +
+      '<div class="stat"><span>Solde espèces</span><strong>'+fmtAr(entreeCash-sortieCash)+'</strong></div>' +
+      '<div class="stat"><span>Solde mobile money</span><strong>'+fmtAr(entreeMM-sortieMM)+'</strong></div>' +
+      '<div class="stat"><span>Mobile money reçu</span><strong>'+fmtAr(entreeMM)+'</strong></div>' +
+      '<div class="stat"><span>Mobile money dépensé</span><strong>'+fmtAr(sortieMM)+'</strong></div>';
+
+    rows.sort(function(a,b){ return a.type===b.type?0:(a.type==='entrée'?-1:1); });
+    var tbody = document.getElementById('tresor-tbody');
+    tbody.innerHTML = rows.length ? rows.map(function(r){
+      return '<tr style="border-bottom:1px solid var(--border);">' +
+        '<td style="padding:8px 6px;">'+(r.type==='entrée'?'🟢 Entrée':'🔴 Sortie')+'</td>' +
+        '<td style="padding:8px 6px;">'+r.desc+'</td>' +
+        '<td style="padding:8px 6px;">'+r.label+'</td>' +
+        '<td style="padding:8px 6px; text-align:right; color:var(--green);">'+(r.entree?fmtAr(r.entree):'—')+'</td>' +
+        '<td style="padding:8px 6px; text-align:right; color:var(--red);">'+(r.sortie?fmtAr(r.sortie):'—')+'</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="5" style="padding:20px; text-align:center; color:var(--muted);">Aucun mouvement ce jour-là.</td></tr>';
+  }
+
+  // ---- Récap ----
+  function isoFromDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+  function periodRange(period){
+    var now = new Date(); now.setHours(0,0,0,0);
+    var from, to;
+    if (period === 'today'){ from = to = todayISO(); }
+    else if (period === 'yesterday'){
+      var y = new Date(now); y.setDate(y.getDate()-1); from = to = isoFromDate(y);
+    } else if (period === 'week'){
+      var dow = (now.getDay()+6)%7;
+      var mon = new Date(now); mon.setDate(mon.getDate()-dow);
+      from = isoFromDate(mon); to = todayISO();
+    } else if (period === 'month'){
+      from = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01'; to = todayISO();
+    } else if (period === 'lastmonth'){
+      var lm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+      var lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      from = isoFromDate(lm); to = isoFromDate(lmEnd);
+    } else if (period === 'year'){
+      from = now.getFullYear()+'-01-01'; to = todayISO();
+    } else if (period === 'custom'){
+      from = document.getElementById('recap-from').value;
+      to = document.getElementById('recap-to').value;
+    }
+    return { from: from, to: to };
+  }
+
+  document.querySelectorAll('.filter[data-period]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.filter[data-period]').forEach(function(x){ x.classList.remove('active'); });
+      b.classList.add('active');
+      activeRecapPeriod = b.dataset.period;
+      document.getElementById('recap-from').value = '';
+      document.getElementById('recap-to').value = '';
+      renderRecapTab();
+    });
+  });
+  document.getElementById('recap-from').addEventListener('change', function(){
+    activeRecapPeriod = 'custom';
+    document.querySelectorAll('.filter[data-period]').forEach(function(x){ x.classList.remove('active'); });
+    renderRecapTab();
+  });
+  document.getElementById('recap-to').addEventListener('change', function(){
+    activeRecapPeriod = 'custom';
+    document.querySelectorAll('.filter[data-period]').forEach(function(x){ x.classList.remove('active'); });
+    renderRecapTab();
+  });
+
+  window._lastRecapData = null;
+
+  function renderRecapTab(){
+    var range = periodRange(activeRecapPeriod);
+    if (!range.from || !range.to){
+      document.getElementById('recap-content').innerHTML = '<div class="empty">Choisissez une période.</div>';
+      return;
+    }
+    var periodReservations = requests.filter(function(r){ return r.date && r.date>=range.from && r.date<=range.to; });
+    var periodExpenses = expenses.filter(function(x){ return x.date && x.date>=range.from && x.date<=range.to; });
+
+    var caPrevu = periodReservations.reduce(function(s,r){ return s+(r.fareAmount||0); },0);
+    var totalRecu = periodReservations.reduce(function(s,r){ return s+effectiveAmountPaid(r); },0);
+    var resteARecevoir = caPrevu - totalRecu;
+    var totalDepenses = periodExpenses.reduce(function(s,x){ return s+(x.amount||0); },0);
+    var beneficeReel = totalRecu - totalDepenses;
+
+    var depByCat = {};
+    periodExpenses.forEach(function(x){ var k=x.category||'other'; depByCat[k]=(depByCat[k]||0)+(x.amount||0); });
+    var depByPay = {};
+    periodExpenses.forEach(function(x){ var k=x.paymentMethod||'other'; depByPay[k]=(depByPay[k]||0)+(x.amount||0); });
+
+    var entreeCash=0, sortieCash=0, entreeMM=0, sortieMM=0;
+    periodReservations.forEach(function(r){
+      var paid = effectiveAmountPaid(r);
+      if (paid>0){
+        var b = tresorBucket(r.paymentMethod, false);
+        if (b==='cash') entreeCash += paid; else if (b==='mobile_money') entreeMM += paid;
+      }
+    });
+    periodExpenses.forEach(function(x){
+      var b = tresorBucket(x.paymentMethod, true);
+      if (b==='cash') sortieCash += (x.amount||0); else if (b==='mobile_money') sortieMM += (x.amount||0);
+    });
+
+    var creditCount = periodReservations.filter(function(r){
+      var s = effectivePaymentStatus(r); return s==='credit' || s==='unpaid' || s==='partial';
+    }).length;
+
+    var vehCounts = {};
+    vehicles.forEach(function(v){ var s=v.status||'disponible'; vehCounts[s]=(vehCounts[s]||0)+1; });
+
+    var html = '';
+    html += '<div class="stats" style="margin-bottom:24px;">' +
+      '<div class="stat"><span>Réservations</span><strong>'+periodReservations.length+'</strong></div>' +
+      '<div class="stat"><span>CA prévu</span><strong>'+fmtAr(caPrevu)+'</strong></div>' +
+      '<div class="stat"><span>Montant reçu</span><strong>'+fmtAr(totalRecu)+'</strong></div>' +
+      '<div class="stat"><span>Reste à recevoir</span><strong>'+fmtAr(resteARecevoir)+'</strong></div>' +
+    '</div>';
+    html += '<div class="stats" style="margin-bottom:24px;">' +
+      '<div class="stat"><span>Total dépenses</span><strong>'+fmtAr(totalDepenses)+'</strong></div>' +
+      '<div class="stat"><span>Bénéfice réel</span><strong style="color:'+(beneficeReel>=0?'var(--green)':'var(--red)')+';">'+fmtAr(beneficeReel)+'</strong></div>' +
+      '<div class="stat"><span>Réservations non soldées</span><strong>'+creditCount+'</strong></div>' +
+      '<div class="stat"><span>Véhicules</span><strong>'+vehicles.length+'</strong></div>' +
+    '</div>';
+    html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Trésorerie — espèces vs mobile money</h3>' +
+      '<div class="day-row"><span>Espèces reçues</span><span>'+fmtAr(entreeCash)+'</span></div>' +
+      '<div class="day-row"><span>Espèces dépensées</span><span>'+fmtAr(sortieCash)+'</span></div>' +
+      '<div class="day-row"><span>Solde espèces</span><span>'+fmtAr(entreeCash-sortieCash)+'</span></div>' +
+      '<div class="day-row"><span>Mobile money reçu</span><span>'+fmtAr(entreeMM)+'</span></div>' +
+      '<div class="day-row"><span>Mobile money dépensé</span><span>'+fmtAr(sortieMM)+'</span></div>' +
+      '<div class="day-row"><span>Solde mobile money</span><span>'+fmtAr(entreeMM-sortieMM)+'</span></div>' +
+    '</div>';
+    html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Dépenses par catégorie</h3>' +
+      Object.keys(EXPENSE_CATEGORY_LABEL).map(function(k){ return '<div class="day-row"><span>'+EXPENSE_CATEGORY_LABEL[k]+'</span><span>'+fmtAr(depByCat[k]||0)+'</span></div>'; }).join('') +
+    '</div>';
+    html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Dépenses par moyen de paiement</h3>' +
+      Object.keys(PAYMENT_METHOD_LABEL).map(function(k){ return '<div class="day-row"><span>'+PAYMENT_METHOD_LABEL[k]+'</span><span>'+fmtAr(depByPay[k]||0)+'</span></div>'; }).join('') +
+    '</div>';
+    html += '<div class="day-detail"><h3>Flotte & chauffeurs</h3>' +
+      '<div class="day-row"><span>Véhicules disponibles</span><span>'+(vehCounts.disponible||0)+'</span></div>' +
+      '<div class="day-row"><span>Véhicules en course</span><span>'+(vehCounts.en_course||0)+'</span></div>' +
+      '<div class="day-row"><span>Véhicules en maintenance</span><span>'+(vehCounts.maintenance||0)+'</span></div>' +
+      '<div class="day-row"><span>Véhicules hors service</span><span>'+(vehCounts.hors_service||0)+'</span></div>' +
+      '<div class="day-row"><span>Chauffeurs</span><span>'+drivers.length+'</span></div>' +
+    '</div>';
+
+    document.getElementById('recap-content').innerHTML = html;
+
+    window._lastRecapData = {
+      range: range, periodReservations: periodReservations, caPrevu: caPrevu, totalRecu: totalRecu,
+      resteARecevoir: resteARecevoir, totalDepenses: totalDepenses, beneficeReel: beneficeReel,
+      entreeCash: entreeCash, sortieCash: sortieCash, entreeMM: entreeMM, sortieMM: sortieMM, vehCounts: vehCounts
+    };
+  }
+
+  window.printRecap = function(){
+    var d = window._lastRecapData;
+    if (!d){ alert('Veuillez patienter le temps du chargement du récapitulatif.'); return; }
+    var rows = [
+      ['Période', isoToDisplay(d.range.from) + ' au ' + isoToDisplay(d.range.to)],
+      ['Réservations', String(d.periodReservations.length)],
+      ['CA prévu', fmtAr(d.caPrevu)],
+      ['Montant reçu', fmtAr(d.totalRecu)],
+      ['Reste à recevoir', fmtAr(d.resteARecevoir)],
+      ['Total dépenses', fmtAr(d.totalDepenses)],
+      ['Bénéfice réel', fmtAr(d.beneficeReel)],
+      ['Espèces reçues', fmtAr(d.entreeCash)],
+      ['Espèces dépensées', fmtAr(d.sortieCash)],
+      ['Solde espèces', fmtAr(d.entreeCash - d.sortieCash)],
+      ['Mobile money reçu', fmtAr(d.entreeMM)],
+      ['Mobile money dépensé', fmtAr(d.sortieMM)],
+      ['Solde mobile money', fmtAr(d.entreeMM - d.sortieMM)],
+      ['Véhicules disponibles', String(d.vehCounts.disponible||0)],
+      ['Véhicules en course', String(d.vehCounts.en_course||0)],
+      ['Véhicules en maintenance', String(d.vehCounts.maintenance||0)],
+      ['Véhicules hors service', String(d.vehCounts.hors_service||0)],
+      ['Chauffeurs', String(drivers.length)]
+    ];
+    var html = '<h1>Récapitulatif financier</h1><div class="sub">VTC PLUS — '+isoToDisplay(d.range.from)+' au '+isoToDisplay(d.range.to)+'</div>' +
+      '<table>' + rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'; }).join('') + '</table>';
+    printWindow('Récapitulatif — ' + isoToDisplay(d.range.from) + ' au ' + isoToDisplay(d.range.to), html);
+  };
 
   // ---------- Stats + calendar ----------
   const MONTH_NAMES = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
@@ -1200,6 +1892,12 @@ h2{font-size:38px}
   document.getElementById("a-km").addEventListener("input", recalcFare);
   document.getElementById("a-blocks").addEventListener("input", recalcFare);
   document.getElementById("a-tier").addEventListener("change", recalcFare);
+  document.getElementById('a-payment-status').addEventListener('change', function(){
+    if (this.value === 'paid'){
+      var amtField = document.getElementById('a-amount-paid');
+      if (!amtField.value) amtField.value = document.getElementById('a-fare').value || 0;
+    }
+  });
 
   document.getElementById("add-form").addEventListener("submit", async (e)=>{
     e.preventDefault();
@@ -1241,6 +1939,8 @@ h2{font-size:38px}
         whenMode: "manual",
         assignedVehicleId: document.getElementById('a-vehicle').value || null,
         paymentMethod: document.getElementById('a-payment').value || null,
+        paymentStatus: document.getElementById('a-payment-status').value,
+        amountPaid: parseFloat(document.getElementById('a-amount-paid').value) || 0,
         notes: document.getElementById('a-notes').value.trim(),
         message: "",
         createdAt: serverTimestamp()
@@ -1297,12 +1997,15 @@ h2{font-size:38px}
           source: v.source || "site", status: v.status||"new",
           assignedVehicleId: v.assignedVehicleId || null,
           paymentMethod: v.paymentMethod || null,
+          paymentStatus: v.paymentStatus || null,
+          amountPaid: (v.amountPaid !== undefined && v.amountPaid !== null) ? v.amountPaid : null,
           notes: v.notes || "",
           serviceType: v.serviceType || "course"
         };
       });
       render();
       if(document.getElementById("view-stats").classList.contains("active")) renderStats();
+      if(document.getElementById("view-finances").classList.contains("active")) renderFinanceTab();
       if(!firstSnapshot){
         const hasNew = snap.docChanges().some(c => c.type === "added");
         if(hasNew) showNewAlert();
@@ -1333,6 +2036,7 @@ h2{font-size:38px}
       if(unsubscribe){ unsubscribe(); unsubscribe=null; firstSnapshot=true; requests=[]; isDirector=false; }
       if(vehiclesUnsub){ vehiclesUnsub(); vehiclesUnsub=null; vehicles=[]; }
       if(driversUnsub){ driversUnsub(); driversUnsub=null; drivers=[]; }
+      if(expensesUnsub){ expensesUnsub(); expensesUnsub=null; expenses=[]; }
       stopHistoryListeners();
     }
   });
