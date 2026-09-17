@@ -354,9 +354,13 @@
     btn.style.pointerEvents="none"; btn.style.opacity=".65"; btn.textContent="Envoi en cours…"; feedback.style.display="none";
     try {
       var tier = selectedTier === "premium" ? "Premium" : "Comfort";
+      var fareAmount = Math.max(MIN_FARE[selectedTier], Math.round(km * RATES[selectedTier] / 100) * 100);
+      function isoToday(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
+      var rideDate = date || isoToday();
       var ref = await addDoc(collection(db, "reservations"), {
-        name:name, phone:phone, pickup:pickup, destination:dest, date:date||null, time:time||null,
-        whenMode:mode, tier:tier, distanceKm:km, estimatedFare:estimate, message:message||"", status:"new", createdAt:serverTimestamp()
+        name:name, phone:phone, pickup:pickup, destination:dest, date:rideDate, time:time||null,
+        whenMode:mode, tier:tier, distanceKm:km, estimatedFare:estimate, fareAmount:fareAmount,
+        source:"site", message:message||"", status:"new", createdAt:serverTimestamp()
       });
       try { saveClientData(); } catch(e) {}
       feedbackMsg("✓ Votre demande a bien été envoyée. Notre équipe va vous contacter pour confirmer votre trajet.", true);

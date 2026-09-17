@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 :root{
   --bg:#0B0B0C;--surface:#141416;--surface2:#1A1A1D;--border:#28251E;
@@ -16,15 +18,15 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Manrope,sans-serif}
-button,input{font:inherit}
+button,input,select,textarea{font:inherit}
 .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .login-card{width:min(430px,100%);background:var(--surface);border:1px solid var(--border);padding:42px;border-radius:6px}
 .logo{height:48px;width:auto;display:block;margin-bottom:28px}
 h1,h2,h3{font-family:"Cormorant Garamond",serif;margin:0}
 h1{font-size:40px}.subtitle{color:var(--muted);margin:10px 0 28px;line-height:1.6}
 label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:7px}
-input,select{width:100%;padding:13px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:3px;outline:none}
-input:focus,select:focus{border-color:var(--gold)}
+input,select,textarea{width:100%;padding:13px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:3px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--gold)}
 .field{margin-bottom:18px}
 .btn{border:0;border-radius:3px;padding:13px 18px;cursor:pointer;font-weight:700}
 .btn-gold{background:var(--gold);color:#141112}
@@ -35,38 +37,70 @@ input:focus,select:focus{border-color:var(--gold)}
 #dashboard{display:none}
 header{height:78px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 38px;position:sticky;top:0;background:rgba(11,11,12,.96);backdrop-filter:blur(8px);z-index:10}
 .header-left{display:flex;align-items:center;gap:18px}.header-left img{height:40px}
-.admin-label{font-size:12px;color:var(--muted);border-left:1px solid var(--border);padding-left:18px}
+.admin-label{font-size:12px;color:var(--muted);border-left:1px solid var(--border);padding-left:18px;display:flex;align-items:center;gap:8px}
+.role-pill{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;background:rgba(201,164,92,.15);color:var(--gold2);letter-spacing:.03em}
 .logout{background:transparent;color:var(--muted);border:1px solid var(--border);padding:9px 14px;border-radius:3px;cursor:pointer}
 main{max-width:1250px;margin:0 auto;padding:42px 28px}
-.top{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:28px}
+.top{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:28px;flex-wrap:wrap}
 .top p{color:var(--muted);margin:8px 0 0}
 h2{font-size:38px}
+.top-actions{display:flex;gap:10px;flex-wrap:wrap}
 .alert{display:none;background:rgba(217,87,87,.12);border:1px solid var(--red);padding:14px 16px;border-radius:4px;margin-bottom:22px;align-items:center;gap:12px}
 .alert-dot{width:10px;height:10px;background:var(--red);border-radius:50%;animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.35;transform:scale(1.25)}}
+.main-tabs{display:flex;gap:10px;margin-bottom:26px;border-bottom:1px solid var(--border)}
+.main-tab{background:none;border:none;color:var(--muted);padding:12px 4px;margin-right:22px;cursor:pointer;font-weight:600;font-size:15px;border-bottom:2px solid transparent}
+.main-tab.active{color:var(--gold2);border-bottom-color:var(--gold)}
+.view{display:none}
+.view.active{display:block}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
 .stat{background:var(--surface);border:1px solid var(--border);padding:20px;border-radius:4px}
-.stat span{font-size:12px;color:var(--muted)}.stat strong{display:block;font-size:28px;margin-top:7px}
+.stat span{font-size:12px;color:var(--muted)}.stat strong{display:block;font-size:28px;margin-top:7px;font-family:'Cormorant Garamond',serif}
 .toolbar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .filter{padding:10px 14px;background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:3px;cursor:pointer}
 .filter.active{background:var(--gold);border-color:var(--gold);color:#141112;font-weight:700}
 .requests{display:flex;flex-direction:column;gap:12px}
-.request{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;display:grid;grid-template-columns:1.2fr 1.4fr .7fr .7fr auto;gap:18px;align-items:center}
+.request{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;display:grid;grid-template-columns:1.1fr 1.3fr .6fr .7fr .6fr auto;gap:16px;align-items:center}
 .request.new{border-color:var(--red)}
 .request small{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}
 .request strong{font-size:14px}.route{font-size:13px;line-height:1.5}
+.source-tag{font-size:10.5px;color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:3px 8px;display:inline-block}
 .status{display:inline-block;padding:6px 9px;border-radius:2px;font-size:11px;font-weight:700}
 .status.new{background:rgba(217,87,87,.14);color:#ef9999}
 .status.pending{background:rgba(217,154,69,.14);color:#e5b36d}
 .status.confirmed{background:rgba(101,184,137,.14);color:#8ed3aa}
-.actions{display:flex;gap:7px;justify-content:flex-end}.actions button{padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text);font-size:11px}
+.actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}.actions button{padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text);font-size:11px}
 .actions .confirm{background:var(--gold);border-color:var(--gold);color:#141112;font-weight:700}
+.actions .danger:hover{border-color:var(--red);color:#ef9999}
 .empty{text-align:center;padding:55px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px}
 .loading{text-align:center;padding:55px;color:var(--muted)}
+.month-nav{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.month-nav button{background:var(--surface);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:3px;cursor:pointer;font-size:15px}
+.month-label{font-family:'Cormorant Garamond',serif;font-size:26px;text-transform:capitalize}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:28px}
+.cal-head{text-align:center;font-size:11px;color:var(--muted);padding:6px 0;text-transform:uppercase}
+.cal-day{background:var(--surface);border:1px solid var(--border);border-radius:4px;min-height:74px;padding:8px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.cal-day.empty2{background:transparent;border-color:transparent;cursor:default}
+.cal-day.today{border-color:var(--gold)}
+.cal-day.selected{background:var(--surface2);border-color:var(--gold)}
+.cal-day .num{font-size:12.5px;color:var(--muted)}
+.cal-day .count{font-size:16px;font-weight:700;color:var(--gold2);font-family:'Cormorant Garamond',serif}
+.day-detail{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:22px}
+.day-detail h3{font-size:20px;margin-bottom:14px}
+.day-row{display:flex;justify-content:space-between;font-size:13.5px;padding:10px 0;border-bottom:1px solid var(--border)}
+.day-row:last-child{border-bottom:none}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{width:min(560px,100%);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:36px;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:26px;margin-bottom:22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.modal-actions{display:flex;gap:10px;margin-top:8px}
+.modal-actions button{flex:1}
 @media(max-width:850px){
   header{padding:0 18px}.admin-label{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
   .request{grid-template-columns:1fr 1fr}.actions{justify-content:flex-start}
+  .cal-day{min-height:52px}
 }
 </style>
 </head>
@@ -97,7 +131,7 @@ h2{font-size:38px}
 <header>
   <div class="header-left">
     <img src="logo.jpg" alt="VTC PLUS">
-    <span class="admin-label">ADMINISTRATION</span>
+    <span class="admin-label">ADMINISTRATION <span id="role-pill" class="role-pill">Gérante</span></span>
   </div>
   <button class="logout" onclick="logout()">Déconnexion</button>
 </header>
@@ -110,29 +144,118 @@ h2{font-size:38px}
 
   <div class="top">
     <div>
-      <h2>Réservations</h2>
-      <p>Suivez et confirmez les demandes de trajet.</p>
+      <h2>Tableau de bord</h2>
+      <p>Gérez les réservations et suivez l'activité de VTC PLUS.</p>
     </div>
-    <button class="btn btn-dark" onclick="testNotification()">🔔 Tester la notification</button>
+    <div class="top-actions">
+      <button class="btn btn-dark" onclick="testNotification()">🔔 Tester</button>
+      <button class="btn btn-gold" onclick="openAddModal()">+ Ajouter une course</button>
+    </div>
   </div>
 
-  <div class="stats">
-    <div class="stat"><span>Nouvelles demandes</span><strong id="stat-new">0</strong></div>
-    <div class="stat"><span>En attente</span><strong id="stat-pending">0</strong></div>
-    <div class="stat"><span>Confirmées</span><strong id="stat-confirmed">0</strong></div>
-    <div class="stat"><span>Aujourd'hui</span><strong id="stat-today">0</strong></div>
+  <div class="main-tabs">
+    <button class="main-tab active" data-tab="reservations">Réservations</button>
+    <button class="main-tab" data-tab="stats">Statistiques</button>
   </div>
 
-  <div class="toolbar">
-    <button class="filter active" data-filter="all">Toutes</button>
-    <button class="filter" data-filter="new">🔴 Nouvelles</button>
-    <button class="filter" data-filter="pending">🟠 En attente</button>
-    <button class="filter" data-filter="confirmed">🟢 Confirmées</button>
+  <!-- RESERVATIONS VIEW -->
+  <div id="view-reservations" class="view active">
+    <div class="stats">
+      <div class="stat"><span>Nouvelles demandes</span><strong id="stat-new">0</strong></div>
+      <div class="stat"><span>En attente</span><strong id="stat-pending">0</strong></div>
+      <div class="stat"><span>Confirmées</span><strong id="stat-confirmed">0</strong></div>
+      <div class="stat"><span>Aujourd'hui</span><strong id="stat-today">0</strong></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="filter active" data-filter="all">Toutes</button>
+      <button class="filter" data-filter="new">🔴 Nouvelles</button>
+      <button class="filter" data-filter="pending">🟠 En attente</button>
+      <button class="filter" data-filter="confirmed">🟢 Confirmées</button>
+    </div>
+
+    <div id="requests" class="requests"><div class="loading">Chargement des réservations…</div></div>
   </div>
 
-  <div id="requests" class="requests"><div class="loading">Chargement des réservations…</div></div>
+  <!-- STATS VIEW -->
+  <div id="view-stats" class="view">
+    <div class="top" style="margin-bottom:20px;">
+      <div class="month-nav">
+        <button onclick="shiftMonth(-1)">←</button>
+        <span id="month-label" class="month-label"></span>
+        <button onclick="shiftMonth(1)">→</button>
+      </div>
+      <button class="btn btn-gold" onclick="exportMonthPDF()">📄 Exporter en PDF</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>Courses ce mois</span><strong id="m-count">0</strong></div>
+      <div class="stat"><span>Revenu total</span><strong id="m-revenue">0 Ar</strong></div>
+      <div class="stat"><span>Kilomètres parcourus</span><strong id="m-km">0 km</strong></div>
+      <div class="stat"><span>Panier moyen</span><strong id="m-avg">0 Ar</strong></div>
+    </div>
+
+    <div id="calendar" class="calendar"></div>
+
+    <div id="day-detail" class="day-detail" style="display:none;">
+      <h3 id="day-detail-title"></h3>
+      <div id="day-detail-list"></div>
+    </div>
+  </div>
 </main>
 </section>
+
+<!-- ADD RESERVATION MODAL -->
+<div id="add-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Ajouter une course</h3>
+    <div id="add-error" class="error"></div>
+    <form id="add-form">
+      <div class="grid2">
+        <div class="field"><label>Nom du client</label><input id="a-name" required></div>
+        <div class="field"><label>Téléphone</label><input id="a-phone" required></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Lieu de départ</label><input id="a-pickup" required></div>
+        <div class="field"><label>Destination</label><input id="a-dest" required></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Date</label><input id="a-date" type="date" required></div>
+        <div class="field"><label>Heure (optionnel)</label><input id="a-time" type="time"></div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Formule</label>
+          <select id="a-tier"><option value="Comfort">Comfort</option><option value="Premium">Premium</option></select>
+        </div>
+        <div class="field"><label>Distance (km)</label><input id="a-km" type="number" min="0" step="0.1" required></div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Réservée via</label>
+          <select id="a-source">
+            <option value="whatsapp">WhatsApp</option>
+            <option value="phone">Téléphone</option>
+            <option value="site">Site web</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Statut</label>
+          <select id="a-status">
+            <option value="confirmed">Confirmée</option>
+            <option value="pending">En attente</option>
+            <option value="new">Nouvelle</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Montant (Ar) — calculé automatiquement, modifiable</label><input id="a-fare" type="number" min="0"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-dark" onclick="closeAddModal()">Annuler</button>
+        <button type="submit" class="btn btn-gold" id="add-submit-btn">Ajouter la course</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script type="module">
   import { app, db } from "./firebase-config.js";
@@ -140,20 +263,32 @@ h2{font-size:38px}
     getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
   import {
-    collection, query, orderBy, onSnapshot, doc, updateDoc
+    collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc,
+    getDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
   const auth = getAuth(app);
+  const RATES = { Comfort: 4000, Premium: 5000 };
+  const MIN_FARE = { Comfort: 20000, Premium: 25000 };
+  const SOURCE_LABEL = { site:"Site web", whatsapp:"WhatsApp", phone:"Téléphone" };
+
   let requests = [];
   let activeFilter = "all";
   let unsubscribe = null;
   let firstSnapshot = true;
+  let isDirector = false;
+  let currentMonth = new Date(); currentMonth.setDate(1);
+  let selectedDay = null;
 
   function labelStatus(s){return s==="new"?"NOUVELLE":s==="pending"?"EN ATTENTE":"CONFIRMÉE"}
+  function fmtAr(n){ return Math.round(n).toLocaleString('fr-FR') + " Ar"; }
+  function todayISO(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
+  function isoToDisplay(iso){ if(!iso) return "—"; var p=iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
 
+  // ---------- Reservations list ----------
   function render(){
     const counts = {new:0,pending:0,confirmed:0,today:0};
-    const today = new Date().toLocaleDateString("fr-FR");
+    const today = todayISO();
     requests.forEach(r=>{
       if(counts[r.status] !== undefined) counts[r.status]++;
       if(r.date === today) counts.today++;
@@ -169,21 +304,27 @@ h2{font-size:38px}
     box.innerHTML=list.map(r=>`
       <div class="request ${r.status==="new"?"new":""}">
         <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small></div>
-        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${r.date ? r.date+(r.time?" à "+r.time:"") : "Au plus vite"}</div>
+        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}</div>
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
-        <div><small>ESTIMATION</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
+        <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
+        <div><small>MONTANT</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
         <div class="actions">
           <button onclick="callClient('${r.phone}')">📞</button>
           <button onclick="whatsapp('${r.phone}')">💬</button>
-          ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest('${r.id}')">✓ Confirmer</button>`:""}
+          ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest('${r.id}')">✓</button>`:""}
+          ${isDirector?`<button class="danger" onclick="deleteRequest('${r.id}')" title="Supprimer">🗑</button>`:""}
         </div>
       </div>`).join("");
   }
 
   window.confirmRequest = async function(id){
-    try{
-      await updateDoc(doc(db,"reservations",id), { status:"confirmed" });
-    }catch(e){ console.error("Erreur de mise à jour:", e); alert("Impossible de confirmer cette réservation pour le moment."); }
+    try{ await updateDoc(doc(db,"reservations",id), { status:"confirmed" }); }
+    catch(e){ console.error(e); alert("Impossible de confirmer cette réservation pour le moment."); }
+  };
+  window.deleteRequest = async function(id){
+    if(!confirm("Supprimer définitivement cette réservation ? Cette action est irréversible.")) return;
+    try{ await deleteDoc(doc(db,"reservations",id)); }
+    catch(e){ console.error(e); alert("Seul le compte direction peut supprimer une réservation."); }
   };
   window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
   window.whatsapp = function(phone){ window.open("https://wa.me/"+phone.replace(/\D/g,""),"_blank"); };
@@ -210,6 +351,186 @@ h2{font-size:38px}
     b.classList.add("active");activeFilter=b.dataset.filter;render();
   }));
 
+  // ---------- Main tabs ----------
+  document.querySelectorAll(".main-tab").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll(".main-tab").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    const tab=b.dataset.tab;
+    document.getElementById("view-reservations").classList.toggle("active", tab==="reservations");
+    document.getElementById("view-stats").classList.toggle("active", tab==="stats");
+    if(tab==="stats") renderStats();
+  }));
+
+  // ---------- Stats + calendar ----------
+  const MONTH_NAMES = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  const DAY_HEADS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+
+  window.shiftMonth = function(delta){
+    currentMonth.setMonth(currentMonth.getMonth()+delta);
+    selectedDay = null;
+    document.getElementById("day-detail").style.display="none";
+    renderStats();
+  };
+
+  function monthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+
+  function renderStats(){
+    const key = monthKey(currentMonth);
+    document.getElementById("month-label").textContent = MONTH_NAMES[currentMonth.getMonth()] + " " + currentMonth.getFullYear();
+
+    const monthRides = requests.filter(r => r.date && r.date.startsWith(key));
+    const revenue = monthRides.reduce((s,r)=>s+(r.fareAmount||0),0);
+    const km = monthRides.reduce((s,r)=>s+(r.distanceKm||0),0);
+    document.getElementById("m-count").textContent = monthRides.length;
+    document.getElementById("m-revenue").textContent = fmtAr(revenue);
+    document.getElementById("m-km").textContent = km.toFixed(1) + " km";
+    document.getElementById("m-avg").textContent = fmtAr(monthRides.length ? revenue/monthRides.length : 0);
+
+    // calendar grid
+    const year = currentMonth.getFullYear(), mo = currentMonth.getMonth();
+    const firstDow = (new Date(year, mo, 1).getDay() + 6) % 7; // Monday=0
+    const daysInMonth = new Date(year, mo+1, 0).getDate();
+    const countsByDay = {};
+    monthRides.forEach(r=>{ const d=parseInt(r.date.split('-')[2],10); countsByDay[d]=(countsByDay[d]||0)+1; });
+
+    let html = DAY_HEADS.map(d=>`<div class="cal-head">${d}</div>`).join("");
+    for(let i=0;i<firstDow;i++) html += `<div class="cal-day empty2"></div>`;
+    const today = todayISO();
+    for(let d=1; d<=daysInMonth; d++){
+      const iso = year+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const cnt = countsByDay[d]||0;
+      const cls = ["cal-day"];
+      if(iso===today) cls.push("today");
+      if(iso===selectedDay) cls.push("selected");
+      html += `<div class="${cls.join(' ')}" onclick="selectDay('${iso}')"><span class="num">${d}</span>${cnt?`<span class="count">${cnt}</span>`:""}</div>`;
+    }
+    document.getElementById("calendar").innerHTML = html;
+
+    if(selectedDay) showDayDetail(selectedDay);
+  }
+
+  window.selectDay = function(iso){
+    selectedDay = (selectedDay===iso) ? null : iso;
+    renderStats();
+    if(selectedDay) showDayDetail(selectedDay);
+    else document.getElementById("day-detail").style.display="none";
+  };
+
+  function showDayDetail(iso){
+    const dayRides = requests.filter(r=>r.date===iso);
+    const box = document.getElementById("day-detail");
+    document.getElementById("day-detail-title").textContent = isoToDisplay(iso) + " — " + dayRides.length + " course" + (dayRides.length>1?"s":"");
+    document.getElementById("day-detail-list").innerHTML = dayRides.length
+      ? dayRides.map(r=>`<div class="day-row"><span>${r.name} — ${r.pickup} → ${r.dest} <span class="source-tag" style="margin-left:6px;">${SOURCE_LABEL[r.source]||"Site web"}</span></span><span>${r.estimate}</span></div>`).join("")
+      : '<div class="day-row"><span style="color:var(--muted);">Aucune course ce jour-là.</span></div>';
+    box.style.display = "block";
+  }
+
+  window.exportMonthPDF = function(){
+    const key = monthKey(currentMonth);
+    const monthRides = requests.filter(r => r.date && r.date.startsWith(key)).sort((a,b)=>a.date.localeCompare(b.date));
+    const revenue = monthRides.reduce((s,r)=>s+(r.fareAmount||0),0);
+    const km = monthRides.reduce((s,r)=>s+(r.distanceKm||0),0);
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    pdf.setFontSize(18);
+    pdf.text("VTC PLUS — Rapport mensuel", 14, 18);
+    pdf.setFontSize(12);
+    pdf.text(MONTH_NAMES[currentMonth.getMonth()] + " " + currentMonth.getFullYear(), 14, 26);
+    pdf.setFontSize(10);
+    pdf.text("Courses : " + monthRides.length + "   |   Revenu total : " + fmtAr(revenue) + "   |   Kilomètres : " + km.toFixed(1) + " km", 14, 34);
+
+    pdf.autoTable({
+      startY: 42,
+      head: [["Date","Client","Trajet","Formule","Source","Statut","Montant"]],
+      body: monthRides.map(r => [
+        isoToDisplay(r.date), r.name, r.pickup + " → " + r.dest, r.tier,
+        SOURCE_LABEL[r.source]||"Site web", labelStatus(r.status), r.estimate
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [201,164,92], textColor: [20,17,18] }
+    });
+
+    pdf.save("vtc-plus-rapport-" + key + ".pdf");
+  };
+
+  // ---------- Add reservation manually ----------
+  window.openAddModal = function(){
+    document.getElementById("add-form").reset();
+    document.getElementById("a-date").value = todayISO();
+    document.getElementById("add-error").style.display = "none";
+    document.getElementById("add-modal").classList.add("show");
+  };
+  window.closeAddModal = function(){ document.getElementById("add-modal").classList.remove("show"); };
+
+  function recalcFare(){
+    const km = parseFloat(document.getElementById("a-km").value);
+    const tier = document.getElementById("a-tier").value;
+    if(!isNaN(km) && km > 0){
+      const fare = Math.max(MIN_FARE[tier], Math.round(km * RATES[tier] / 100) * 100);
+      document.getElementById("a-fare").value = fare;
+    }
+  }
+  document.getElementById("a-km").addEventListener("input", recalcFare);
+  document.getElementById("a-tier").addEventListener("change", recalcFare);
+
+  document.getElementById("add-form").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const errBox = document.getElementById("add-error");
+    errBox.style.display = "none";
+    const km = parseFloat(document.getElementById("a-km").value);
+    const fareAmount = parseFloat(document.getElementById("a-fare").value);
+    if(isNaN(km) || km <= 0 || isNaN(fareAmount) || fareAmount <= 0){
+      errBox.textContent = "Merci de renseigner une distance et un montant valides.";
+      errBox.style.display = "block";
+      return;
+    }
+    const btn = document.getElementById("add-submit-btn");
+    btn.disabled = true; btn.textContent = "Ajout en cours…";
+    try{
+      await addDoc(collection(db,"reservations"), {
+        name: document.getElementById("a-name").value.trim(),
+        phone: document.getElementById("a-phone").value.trim(),
+        pickup: document.getElementById("a-pickup").value.trim(),
+        destination: document.getElementById("a-dest").value.trim(),
+        date: document.getElementById("a-date").value,
+        time: document.getElementById("a-time").value || null,
+        tier: document.getElementById("a-tier").value,
+        distanceKm: km,
+        fareAmount: fareAmount,
+        estimatedFare: fmtAr(fareAmount),
+        source: document.getElementById("a-source").value,
+        status: document.getElementById("a-status").value,
+        whenMode: "manual",
+        message: "",
+        createdAt: serverTimestamp()
+      });
+      closeAddModal();
+    }catch(err){
+      console.error(err);
+      errBox.textContent = "Impossible d'ajouter cette course pour le moment.";
+      errBox.style.display = "block";
+    }
+    btn.disabled = false; btn.textContent = "Ajouter la course";
+  });
+
+  // ---------- Auth + live data ----------
+  document.getElementById("login-form").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const email=document.getElementById("admin-email").value.trim();
+    const pass=document.getElementById("admin-password").value;
+    const btn=document.getElementById("login-btn");
+    const errBox=document.getElementById("login-error");
+    errBox.style.display="none";
+    btn.disabled=true; btn.textContent="Connexion…";
+    try{ await signInWithEmailAndPassword(auth, email, pass); }
+    catch(err){ errBox.textContent = "Identifiants incorrects."; errBox.style.display="block"; }
+    btn.disabled=false; btn.textContent="Se connecter";
+  });
+
+  window.logout = function(){ signOut(auth); };
+
   function startListening(){
     const box=document.getElementById("requests");
     box.innerHTML='<div class="loading">Chargement des réservations…</div>';
@@ -218,19 +539,16 @@ h2{font-size:38px}
       requests = snap.docs.map(d => {
         const v = d.data();
         return {
-          id: d.id,
-          name: v.name || "—",
-          phone: v.phone || "—",
-          pickup: v.pickup || "—",
-          dest: v.destination || "—",
-          date: v.date ? v.date.split("-").reverse().join("/") : "",
-          time: v.time || "",
-          tier: v.tier || "Comfort",
-          estimate: v.estimatedFare || "—",
-          status: v.status || "new"
+          id: d.id, name: v.name||"—", phone: v.phone||"—",
+          pickup: v.pickup||"—", dest: v.destination||"—",
+          date: v.date || "", time: v.time || "",
+          tier: v.tier||"Comfort", estimate: v.estimatedFare||"—",
+          fareAmount: v.fareAmount || 0, distanceKm: v.distanceKm || 0,
+          source: v.source || "site", status: v.status||"new"
         };
       });
       render();
+      if(document.getElementById("view-stats").classList.contains("active")) renderStats();
       if(!firstSnapshot){
         const hasNew = snap.docChanges().some(c => c.type === "added");
         if(hasNew) showNewAlert();
@@ -242,35 +560,22 @@ h2{font-size:38px}
     });
   }
 
-  document.getElementById("login-form").addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    const email=document.getElementById("admin-email").value.trim();
-    const pass=document.getElementById("admin-password").value;
-    const btn=document.getElementById("login-btn");
-    const errBox=document.getElementById("login-error");
-    errBox.style.display="none";
-    btn.disabled=true; btn.textContent="Connexion…";
-    try{
-      await signInWithEmailAndPassword(auth, email, pass);
-    }catch(err){
-      errBox.textContent = "Identifiants incorrects.";
-      errBox.style.display="block";
-    }
-    btn.disabled=false; btn.textContent="Se connecter";
-  });
-
-  window.logout = function(){ signOut(auth); };
-
-  onAuthStateChanged(auth, (user)=>{
+  onAuthStateChanged(auth, async (user)=>{
     if(user){
       document.getElementById("login").style.display="none";
       document.getElementById("dashboard").style.display="block";
       document.getElementById("admin-password").value="";
+      try{
+        const dSnap = await getDoc(doc(db,"directors",user.uid));
+        isDirector = dSnap.exists();
+      }catch(e){ isDirector = false; }
+      document.getElementById("role-pill").textContent = isDirector ? "Direction" : "Gérante";
       if(!unsubscribe) startListening();
+      renderStats();
     } else {
       document.getElementById("dashboard").style.display="none";
       document.getElementById("login").style.display="flex";
-      if(unsubscribe){ unsubscribe(); unsubscribe=null; firstSnapshot=true; requests=[]; }
+      if(unsubscribe){ unsubscribe(); unsubscribe=null; firstSnapshot=true; requests=[]; isDirector=false; }
     }
   });
 </script>
