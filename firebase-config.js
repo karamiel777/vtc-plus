@@ -1,7 +1,11 @@
-import { initializeApp } from "firebase/app";
+// VTC PLUS — Firebase configuration
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "...",
+  apiKey: "AIzaSyABNLn0CJcxH_skC9QqRsKLbY_tvP5hvV0",
   authDomain: "vtc-plus-a6242.firebaseapp.com",
   projectId: "vtc-plus-a6242",
   storageBucket: "vtc-plus-a6242.firebasestorage.app",
@@ -10,3 +14,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+export default app;
