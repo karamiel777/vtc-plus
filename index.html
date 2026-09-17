@@ -115,15 +115,23 @@
       <span id="route-duration" style="color:var(--muted);"></span>
     </div>
 
-    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;">
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        <label for="f-when" style="font-size:12.5px; color:var(--muted);">Date et heure souhaitées</label>
-        <input id="f-when" type="text" placeholder="Ex : Aujourd'hui, 18h30" class="form-input">
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label style="font-size:12.5px; color:var(--muted);">Prise en charge</label>
+      <div style="display:flex; gap:12px;">
+        <button type="button" id="when-asap" onclick="selectWhenMode('asap')" class="tier-btn" style="flex:1; padding:14px; border-radius:2px; font-weight:600; font-size:14px; cursor:pointer; font-family:'Manrope',sans-serif;">Au plus vite</button>
+        <button type="button" id="when-scheduled" onclick="selectWhenMode('scheduled')" class="tier-btn" style="flex:1; padding:14px; border-radius:2px; font-weight:600; font-size:14px; cursor:pointer; font-family:'Manrope',sans-serif;">Choisir une date</button>
       </div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        <label for="f-km" style="font-size:12.5px; color:var(--muted);">Distance (km) — calculée automatiquement, ou saisissez-la</label>
-        <input id="f-km" type="number" min="0" placeholder="Ex : 12" class="form-input" oninput="updateEstimate()">
+      <div id="when-asap-note" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Prise en charge sous environ 30 minutes minimum — l'heure exacte vous sera confirmée par WhatsApp.</div>
+      <div id="when-scheduled-fields" style="display:none; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;">
+        <input id="f-date" type="date" class="form-input">
+        <input id="f-time" type="time" class="form-input">
       </div>
+      <div id="when-scheduled-note" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Réservable de 24 heures à 7 jours à l'avance — vous recevrez une confirmation par WhatsApp.</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label for="f-km" style="font-size:12.5px; color:var(--muted);">Distance (km) — calculée automatiquement, ou saisissez-la</label>
+      <input id="f-km" type="number" min="0" placeholder="Ex : 12" class="form-input" oninput="updateEstimate()">
     </div>
 
     <div style="display:flex; flex-direction:column; gap:6px;">
@@ -141,9 +149,14 @@
       <textarea id="f-message" rows="3" placeholder="Bagages, arrêt supplémentaire, préférence…" class="form-input" style="resize:vertical;"></textarea>
     </div>
 
-    <div id="estimate-box" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; justify-content:space-between; align-items:center;">
-      <span style="font-size:13.5px; color:var(--muted);">Estimation</span>
-      <span id="estimate-text" style="font-family:'Cormorant Garamond', serif; font-size:22px; color:var(--gold-bright);"></span>
+    <div id="estimate-box" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; flex-direction:column; gap:4px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted);">
+        <span id="estimate-detail"></span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <span style="font-size:13.5px; color:var(--muted);">Total estimé</span>
+        <span id="estimate-text" style="font-family:'Cormorant Garamond', serif; font-size:26px; color:var(--gold-bright);"></span>
+      </div>
     </div>
     <div style="font-size:12px; color:var(--muted); line-height:1.6; margin-top:-8px;">Estimation indicative — le tarif exact dépend du trajet réel et sera confirmé avant le départ.</div>
 
@@ -497,6 +510,31 @@
   var RATES = { comfort: 4000, premium: 5000 };
   var MIN_FARE = { comfort: 20000, premium: 25000 };
   var selectedTier = 'premium';
+  var whenMode = null;
+
+  function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+
+  function selectWhenMode(mode){
+    whenMode = mode;
+    document.getElementById('when-asap').classList.toggle('active', mode === 'asap');
+    document.getElementById('when-scheduled').classList.toggle('active', mode === 'scheduled');
+    document.getElementById('when-asap-note').style.display = mode === 'asap' ? 'block' : 'none';
+    document.getElementById('when-scheduled-fields').style.display = mode === 'scheduled' ? 'grid' : 'none';
+    document.getElementById('when-scheduled-note').style.display = mode === 'scheduled' ? 'block' : 'none';
+
+    if (mode === 'scheduled'){
+      var now = new Date();
+      var min = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      var max = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      var minStr = min.getFullYear() + '-' + pad2(min.getMonth() + 1) + '-' + pad2(min.getDate());
+      var maxStr = max.getFullYear() + '-' + pad2(max.getMonth() + 1) + '-' + pad2(max.getDate());
+      var dateInput = document.getElementById('f-date');
+      dateInput.min = minStr;
+      dateInput.max = maxStr;
+      if (!dateInput.value) dateInput.value = minStr;
+    }
+    updateWaLink();
+  }
 
   function selectTier(t){
     selectedTier = t;
@@ -508,9 +546,18 @@
   function updateEstimate(){
     var km = parseFloat(document.getElementById('f-km').value);
     var box = document.getElementById('estimate-box');
+    var detail = document.getElementById('estimate-detail');
     var text = document.getElementById('estimate-text');
     if (!isNaN(km) && km > 0){
-      var fare = Math.max(MIN_FARE[selectedTier], Math.round(km * RATES[selectedTier] / 100) * 100);
+      var rate = RATES[selectedTier];
+      var raw = km * rate;
+      var fare = Math.max(MIN_FARE[selectedTier], Math.round(raw / 100) * 100);
+      var tierLabel = selectedTier === 'premium' ? 'Premium' : 'Comfort';
+      if (fare > raw){
+        detail.textContent = tierLabel + ' — tarif minimum appliqué (' + km.toFixed(1) + ' km × ' + rate.toLocaleString('fr-FR') + ' Ar = ' + Math.round(raw).toLocaleString('fr-FR') + ' Ar, sous le minimum)';
+      } else {
+        detail.textContent = tierLabel + ' — ' + km.toFixed(1) + ' km × ' + rate.toLocaleString('fr-FR') + ' Ar/km';
+      }
       text.textContent = fare.toLocaleString('fr-FR') + ' Ar';
       box.style.display = 'flex';
     } else {
@@ -523,11 +570,21 @@
     var name = document.getElementById('f-name').value;
     var pickup = document.getElementById('f-pickup').value;
     var dest = document.getElementById('f-dest').value;
-    var when = document.getElementById('f-when').value;
     var phone = document.getElementById('f-phone').value;
     var message = document.getElementById('f-message').value;
     var estimateText = document.getElementById('estimate-text').textContent;
     var estimateVisible = document.getElementById('estimate-box').style.display !== 'none';
+
+    var when;
+    if (whenMode === 'asap'){
+      when = 'Au plus vite (sous ~30 min, à confirmer)';
+    } else if (whenMode === 'scheduled'){
+      var d = document.getElementById('f-date').value;
+      var t = document.getElementById('f-time').value;
+      when = (d ? d.split('-').reverse().join('/') : '—') + (t ? ' à ' + t : '');
+    } else {
+      when = '—';
+    }
 
     var lines = [
       'Bonjour VTC PLUS, je souhaite réserver un trajet.',
@@ -545,7 +602,7 @@
     document.getElementById('wa-submit').setAttribute('href', waLink);
   }
 
-  ['f-pickup','f-dest','f-when','f-phone','f-message','f-name'].forEach(function(id){
+  ['f-pickup','f-dest','f-date','f-time','f-phone','f-message','f-name'].forEach(function(id){
     document.getElementById(id).addEventListener('input', updateWaLink);
   });
   selectTier('premium');
