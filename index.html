@@ -124,6 +124,14 @@
       <button id="tier-premium" onclick="selectTier('premium')" class="tier-btn" style="flex:1; padding:14px; border-radius:2px; font-weight:600; font-size:14px; cursor:pointer; font-family:'Manrope',sans-serif;">Premium</button>
     </div>
 
+    <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px;">
+      <img id="tier-preview-img" src="haval-h6.jpg" alt="Haval H6 — Premium" style="width:88px; height:60px; object-fit:contain; flex-shrink:0; background:#F4F0E6; border-radius:2px; padding:4px;">
+      <div style="display:flex; flex-direction:column; gap:3px; min-width:0;">
+        <span id="tier-preview-label" style="font-size:13.5px; color:var(--text); font-weight:600;">Haval H6 · Mazda CX-5</span>
+        <span data-i18n="res.tierPreviewNote" style="font-size:11px; color:var(--muted); line-height:1.4;">Photo non contractuelle — le véhicule fourni peut varier selon disponibilité.</span>
+      </div>
+    </div>
+
     <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;">
       <div style="display:flex; flex-direction:column; gap:6px; position:relative;">
         <label for="f-pickup" data-i18n="res.pickup" style="font-size:12.5px; color:var(--muted);">Lieu de départ</label>
@@ -139,7 +147,8 @@
 
     <button type="button" onclick="calculateRoute()" class="btn btn-outline" data-i18n="res.calcRoute" style="justify-content:center;" id="route-btn">Calculer l'itinéraire</button>
     <div id="route-status" style="font-size:13px; color:var(--muted); display:none;"></div>
-    <div id="route-map" style="display:none; width:100%; height:280px; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
+    <div id="route-map" style="width:100%; height:280px; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
+    <div id="map-hint" style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:-8px;"></div>
     <div id="route-result" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--text);">
       <span id="route-distance"></span>
       <span id="route-duration" style="color:var(--muted);"></span>
@@ -431,6 +440,7 @@
     'res.messagePh':'Luggage, extra stop, preference…',
     'res.submit':'Send my request',
     'res.tripHistory':'Your previous rides',
+    'res.tierPreviewNote':'Non-contractual photo — the vehicle provided may vary depending on availability.',
     'fleet.title':'Our fleet',
     'fleet.subtitle':"Two levels of service, both impeccable. You choose the standing, we guarantee the experience.",
     'fleet.comfortSub':'Dacia Duster or equivalent',
@@ -483,7 +493,11 @@
     'js.routeServiceDown': {fr:"Le service d'itinéraire est momentanément indisponible — réessaie dans un instant.", en:'The routing service is temporarily unavailable — please try again shortly.'},
     'js.geoServiceDown': {fr:'Le service de localisation est momentanément indisponible — réessaie dans un instant.', en:'The location service is temporarily unavailable — please try again shortly.'},
     'js.minCourse5': {fr:'course minimum (5 km)', en:'minimum fare (5 km)'},
-    'js.welcomeBack': {fr:'Bon retour, ', en:'Welcome back, '}
+    'js.welcomeBack': {fr:'Bon retour, ', en:'Welcome back, '},
+    'js.mapLocating': {fr:"Recherche de l'adresse…", en:'Looking up address…'},
+    'js.mapHintPickup': {fr:'💡 Appuyez sur la carte pour définir votre point de départ.', en:'💡 Tap the map to set your pickup location.'},
+    'js.mapHintDest': {fr:'💡 Appuyez sur la carte pour définir votre destination.', en:'💡 Tap the map to set your destination.'},
+    'js.mapHintBoth': {fr:'💡 Appuyez à nouveau sur la carte pour changer la destination.', en:'💡 Tap the map again to change the destination.'}
   };
 
   function t(key){
@@ -527,6 +541,8 @@
     currentLang = lang;
     try{ localStorage.setItem('vtcplus_lang', lang); }catch(e){}
     applyTranslations();
+    if (typeof updateTierPreview === 'function' && typeof selectedTier !== 'undefined') updateTierPreview(selectedTier);
+    if (typeof updateMapHint === 'function') updateMapHint();
   }
 
   (function initLang(){
@@ -586,6 +602,7 @@
 
     input.addEventListener('input', function(){
       selectedCoords[fieldId === 'f-pickup' ? 'pickup' : 'dest'] = null;
+      if (typeof updateMapHint === 'function') updateMapHint();
       var query = input.value.trim();
       if (query.length < 3){
         box.classList.remove('show');
@@ -607,7 +624,10 @@
             item.textContent = r.display_name;
             item.addEventListener('click', function(){
               input.value = r.display_name;
-              selectedCoords[fieldId === 'f-pickup' ? 'pickup' : 'dest'] = { lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+              var key = fieldId === 'f-pickup' ? 'pickup' : 'dest';
+              selectedCoords[key] = { lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+              if (typeof placeMapPin === 'function' && routeMap) placeMapPin(key, parseFloat(r.lat), parseFloat(r.lon), r.display_name);
+              if (typeof updateMapHint === 'function') updateMapHint();
               box.classList.remove('show');
               box.innerHTML = '';
             });
@@ -628,6 +648,70 @@
 
   // Route calculation (OpenStreetMap Nominatim + OSRM — free, no API key)
   var routeMap = null, routeLine = null, markerA = null, markerB = null;
+
+  function coloredPin(color){
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:16px; height:16px; border-radius:50% 50% 50% 0; background:' + color + '; border:2px solid #fff; transform:rotate(-45deg); box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 16],
+      popupAnchor: [0, -16]
+    });
+  }
+
+  function updateMapHint(){
+    var hint = document.getElementById('map-hint');
+    if (!hint) return;
+    if (!selectedCoords.pickup) hint.textContent = t('js.mapHintPickup');
+    else if (!selectedCoords.dest) hint.textContent = t('js.mapHintDest');
+    else hint.textContent = t('js.mapHintBoth');
+  }
+
+  function reverseGeocode(lat, lon){
+    var url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon + "&zoom=18&addressdetails=0";
+    return fetch(url).then(function(r){ return r.json(); }).then(function(data){
+      return (data && data.display_name) ? data.display_name : (lat.toFixed(5) + ', ' + lon.toFixed(5));
+    }).catch(function(){ return lat.toFixed(5) + ', ' + lon.toFixed(5); });
+  }
+
+  function placeMapPin(target, lat, lon, label){
+    if (target === 'pickup'){
+      if (markerA) routeMap.removeLayer(markerA);
+      markerA = L.marker([lat, lon], { icon: coloredPin('#2f8a5c') }).addTo(routeMap).bindPopup(t('js.departFrom') + label);
+    } else {
+      if (markerB) routeMap.removeLayer(markerB);
+      markerB = L.marker([lat, lon], { icon: coloredPin('#c94141') }).addTo(routeMap).bindPopup(t('js.destTo') + label);
+    }
+  }
+
+  function onMapClick(e){
+    var lat = e.latlng.lat, lon = e.latlng.lng;
+    var target = !selectedCoords.pickup ? 'pickup' : 'dest';
+    var fieldId = target === 'pickup' ? 'f-pickup' : 'f-dest';
+    var input = document.getElementById(fieldId);
+    input.value = t('js.mapLocating');
+    reverseGeocode(lat, lon).then(function(label){
+      input.value = label;
+      selectedCoords[target] = { lat: lat, lon: lon };
+      placeMapPin(target, lat, lon, label);
+      updateMapHint();
+      if (selectedCoords.pickup && selectedCoords.dest) calculateRoute();
+    });
+  }
+
+  function initMap(){
+    if (routeMap) return;
+    var mapEl = document.getElementById('route-map');
+    if (!mapEl) return;
+    routeMap = L.map('route-map', { zoomControl: true, attributionControl: true }).setView([-18.8792, 47.5079], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(routeMap);
+    routeMap.on('click', onMapClick);
+    updateMapHint();
+    setTimeout(function(){ routeMap.invalidateSize(); }, 150);
+  }
 
   function geocode(query){
     var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mg&viewbox=" + TANA_VIEWBOX + "&bounded=1&q=" + encodeURIComponent(query);
@@ -689,17 +773,9 @@
 
         var mapEl = document.getElementById('route-map');
         mapEl.style.display = 'block';
+        initMap();
 
-        // Wait a frame so the browser finishes laying out the now-visible
-        // container before Leaflet measures it (otherwise it reads 0x0).
         requestAnimationFrame(function(){
-          if (!routeMap){
-            routeMap = L.map('route-map', { zoomControl: true, attributionControl: true });
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19,
-              attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(routeMap);
-          }
           routeMap.invalidateSize();
 
           if (routeLine) routeMap.removeLayer(routeLine);
@@ -708,10 +784,11 @@
 
           var coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
           routeLine = L.polyline(coords, { color: '#C9A45C', weight: 4 }).addTo(routeMap);
-          markerA = L.marker([a.lat, a.lon]).addTo(routeMap).bindPopup(t('js.departFrom') + pickup);
-          markerB = L.marker([b.lat, b.lon]).addTo(routeMap).bindPopup(t('js.destTo') + dest);
+          markerA = L.marker([a.lat, a.lon], { icon: coloredPin('#2f8a5c') }).addTo(routeMap).bindPopup(t('js.departFrom') + pickup);
+          markerB = L.marker([b.lat, b.lon], { icon: coloredPin('#c94141') }).addTo(routeMap).bindPopup(t('js.destTo') + dest);
           routeMap.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
           setTimeout(function(){ routeMap.invalidateSize(); }, 200);
+          updateMapHint();
         });
       }).catch(function(){
         status.textContent = t('js.routeServiceDown');
@@ -759,7 +836,22 @@
     selectedTier = t;
     document.getElementById('tier-comfort').classList.toggle('active', t === 'comfort');
     document.getElementById('tier-premium').classList.toggle('active', t === 'premium');
+    updateTierPreview(t);
     updateEstimate();
+  }
+
+  function updateTierPreview(t){
+    var img = document.getElementById('tier-preview-img');
+    var label = document.getElementById('tier-preview-label');
+    if (t === 'comfort'){
+      img.src = 'duster.jpg';
+      img.alt = 'Dacia Duster — Comfort';
+      label.textContent = currentLang === 'en' ? 'Dacia Duster or equivalent' : 'Dacia Duster ou équivalent';
+    } else {
+      img.src = 'haval-h6.jpg';
+      img.alt = 'Haval H6 — Premium';
+      label.textContent = 'Haval H6 · Mazda CX-5';
+    }
   }
 
   function updateEstimate(){
@@ -825,6 +917,7 @@
     document.getElementById(id).addEventListener('input', updateWaLink);
   });
   selectTier('premium');
+  initMap();
 
   // Client memory (stored only in this browser — no server, no real account)
   function loadClientData(){
