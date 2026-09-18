@@ -3,6 +3,51 @@
 // avec le service worker du site public (index.html).
 // Comme pour le site public : aucune donnée en temps réel (Firestore, Storage)
 // n'est mise en cache, uniquement la coquille de la page.
+//
+// Ce service worker gère aussi la réception des notifications push (Firebase
+// Cloud Messaging) pour les nouvelles demandes de course, y compris quand
+// l'app est fermée ou le téléphone verrouillé.
+importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "AIzaSyABNLn0CJcxH_skC9QqRsKLbY_tvP5hvV0",
+  authDomain: "vtc-plus-a6242.firebaseapp.com",
+  projectId: "vtc-plus-a6242",
+  storageBucket: "vtc-plus-a6242.firebasestorage.app",
+  messagingSenderId: "500809490080",
+  appId: "1:500809490080:web:111996fe837bad8bcdb3c5"
+});
+
+var messaging = firebase.messaging();
+
+// Notification reçue alors que l'app n'est pas au premier plan.
+messaging.onBackgroundMessage(function (payload) {
+  var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
+  var options = {
+    body: (payload.notification && payload.notification.body) || '',
+    icon: 'favicon-512-admin.png',
+    badge: 'favicon-512-admin.png',
+    data: payload.data || {}
+  };
+  self.registration.showNotification(title, options);
+});
+
+// Un tap sur la notification ramène (ou ouvre) l'app admin.
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        if (clientList[i].url.indexOf('admin.html') !== -1 && 'focus' in clientList[i]) {
+          return clientList[i].focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow('admin.html');
+    })
+  );
+});
+
 var CACHE_NAME = 'vtcplus-admin-v1';
 var APP_SHELL = [
   './admin.html',
