@@ -1144,10 +1144,6 @@
   window.addEventListener('beforeinstallprompt', function(e){
     e.preventDefault();
     deferredInstallPrompt = e;
-    var btn = document.getElementById('install-app-btn');
-    var btnM = document.getElementById('install-app-btn-m');
-    if (btn) btn.style.display = 'inline-block';
-    if (btnM) btnM.style.display = 'inline-block';
   });
 
   window.installApp = function(){
@@ -1156,7 +1152,7 @@
       deferredInstallPrompt.userChoice.then(function(){ deferredInstallPrompt = null; });
       return;
     }
-    // iOS Safari ne propose pas d'installation automatique : on explique la manip.
+    // Pas d'invite native disponible (iOS, app déjà proposée une fois, navigateur non Chromium…) : on explique la manip.
     var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     if (isIOS){
       alert(currentLang === 'en'
@@ -1164,31 +1160,23 @@
         : "Sur iPhone/iPad : appuyez sur l'icône Partager, puis \"Sur l'écran d'accueil\".");
     } else {
       alert(currentLang === 'en'
-        ? "Open your browser menu and choose \"Install app\" or \"Add to Home Screen\"."
-        : "Ouvrez le menu de votre navigateur et choisissez \"Installer l'application\" ou \"Ajouter à l'écran d'accueil\".");
+        ? "Look for the install icon in your browser's address bar, or open the browser menu (⋮) and choose \"Install VTC PLUS\"."
+        : "Cherchez l'icône d'installation dans la barre d'adresse de votre navigateur, ou ouvrez le menu (⋮) et choisissez \"Installer VTC PLUS\".");
     }
   };
 
-  window.addEventListener('appinstalled', function(){
-    var btn = document.getElementById('install-app-btn');
-    var btnM = document.getElementById('install-app-btn-m');
-    if (btn) btn.style.display = 'none';
-    if (btnM) btnM.style.display = 'none';
-  });
-
-  // Sur iOS, l'événement beforeinstallprompt n'existe pas : on affiche quand même
-  // le bouton (il ouvrira les instructions manuelles via installApp()).
-  document.addEventListener('DOMContentLoaded', function(){
-    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  function refreshInstallButtons(){
     var isStandalone = window.navigator.standalone === true ||
       (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-    if (isIOS && !isStandalone){
-      var btn = document.getElementById('install-app-btn');
-      var btnM = document.getElementById('install-app-btn-m');
-      if (btn) btn.style.display = 'inline-block';
-      if (btnM) btnM.style.display = 'inline-block';
-    }
-  });
+    var btn = document.getElementById('install-app-btn');
+    var btnM = document.getElementById('install-app-btn-m');
+    var display = isStandalone ? 'none' : 'inline-block';
+    if (btn) btn.style.display = display;
+    if (btnM) btnM.style.display = display;
+  }
+
+  window.addEventListener('appinstalled', refreshInstallButtons);
+  document.addEventListener('DOMContentLoaded', refreshInstallButtons);
 </script>
 
 </body>
