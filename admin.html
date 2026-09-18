@@ -189,6 +189,7 @@ h2{font-size:38px}
       <p>Gérez les réservations et suivez l'activité de VTC PLUS.</p>
     </div>
     <div class="top-actions">
+      <button class="btn btn-dark" id="enable-push-btn" onclick="enablePushNotifications()">🔔 Activer les notifications</button>
       <button class="btn btn-dark" onclick="testNotification()">🔔 Tester</button>
       <button class="btn btn-gold" onclick="openAddModal()">+ Ajouter une course</button>
     </div>
@@ -682,7 +683,7 @@ h2{font-size:38px}
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
   import {
     collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc,
-    getDoc, serverTimestamp
+    getDoc, setDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
   import {
     ref as storageRef, uploadBytes, getDownloadURL, deleteObject
@@ -865,7 +866,71 @@ h2{font-size:38px}
     playSound();
     setTimeout(()=>{ a.style.display="none"; }, 4500);
   }
+  function showToast(text){
+    const a=document.getElementById("new-alert");
+    a.style.display="flex";
+    document.getElementById("alert-text").textContent=text;
+    setTimeout(()=>{ a.style.display="none"; }, 4500);
+  }
   window.testNotification = function(){ showNewAlert(); };
+
+  // ---------- Notifications push (nouvelle course reçue, même app fermée) ----------
+  // ⚠️ À COMPLÉTER : colle ici la clé VAPID générée dans la console Firebase
+  // (⚙️ Paramètres du projet → Cloud Messaging → onglet "Web Configuration" →
+  // "Web Push certificates" → Générer une paire de clés). Sans cette clé,
+  // le bouton "Activer les notifications" ne fonctionnera pas.
+  var PUSH_VAPID_KEY = "COLLER_ICI_LA_CLE_VAPID";
+
+  function refreshPushButton(){
+    var btn = document.getElementById('enable-push-btn');
+    if (!btn) return;
+    if (!('Notification' in window)){ btn.style.display = 'none'; return; }
+    if (Notification.permission === 'granted') btn.textContent = '🔔 Notifications activées';
+    else if (Notification.permission === 'denied') btn.textContent = '🔕 Notifications bloquées (réglages)';
+    else btn.textContent = '🔔 Activer les notifications';
+  }
+
+  window.enablePushNotifications = async function(){
+    try{
+      if (!('Notification' in window) || !('serviceWorker' in navigator)){
+        alert("Les notifications ne sont pas prises en charge sur ce navigateur.");
+        return;
+      }
+      if (Notification.permission === 'denied'){
+        alert("Les notifications sont bloquées pour cette app. Réactive-les dans les réglages (iPhone : Réglages → VTC Admin → Notifications ; Android/Chrome : ⋮ → Infos sur le site → Notifications), puis reviens ici.");
+        return;
+      }
+      var permission = await Notification.requestPermission();
+      refreshPushButton();
+      if (permission !== 'granted') return;
+
+      var swReg = await navigator.serviceWorker.ready;
+      var mod = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
+      var supported = await mod.isSupported().catch(function(){ return false; });
+      if (!supported){
+        alert("Ton navigateur ne prend pas en charge les notifications push sur cet appareil.\n\nSur iPhone, il faut : iOS 16.4 ou plus récent, ET avoir installé VTC Admin sur l'écran d'accueil (pas juste ouvert dans Safari).");
+        return;
+      }
+      if (!PUSH_VAPID_KEY || PUSH_VAPID_KEY.indexOf('COLLER_ICI') === 0){
+        alert("Configuration incomplète : la clé VAPID n'a pas encore été renseignée dans le code (PUSH_VAPID_KEY).");
+        return;
+      }
+      var messaging = mod.getMessaging(app);
+      var token = await mod.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
+      if (token && auth.currentUser){
+        await setDoc(doc(db, 'adminDeviceTokens', token), {
+          token: token,
+          uid: auth.currentUser.uid,
+          updatedAt: serverTimestamp(),
+          userAgent: navigator.userAgent
+        });
+        showToast('🔔 Notifications activées sur cet appareil');
+      }
+    }catch(e){
+      console.error('Erreur activation notifications:', e);
+      alert("Impossible d'activer les notifications sur cet appareil pour le moment.");
+    }
+  };
 
   document.querySelectorAll(".filter").forEach(b=>b.addEventListener("click",()=>{
     document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));
@@ -1233,8 +1298,12 @@ h2{font-size:38px}
         'table.mini td{padding:7px 6px; font-size:12.5px; border-bottom:1px solid #efece3; vertical-align:top;}' +
         'table.mini td:first-child{color:#8a857a; width:auto;}' +
         'table.mini td:last-child{text-align:right; font-weight:600; color:#18161a; width:auto;}' +
-        '@media print{ body{padding:16px;} .stat-box{break-inside:avoid;} }' +
+        '.back-btn{position:sticky; top:0; z-index:10; display:inline-flex; align-items:center; gap:6px; background:#141112; color:#EFC978; border:none; padding:10px 16px; margin-bottom:18px; border-radius:4px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:600; cursor:pointer;}' +
+        '@media print{ body{padding:16px;} .stat-box{break-inside:avoid;} .back-btn{display:none;} }' +
       '</style></head><body>' +
+      // Sur iPhone (PWA "sur l\'écran d\'accueil" ou Safari), cette page s\'ouvre dans un nouvel onglet
+      // sans barre de navigation : sans ce bouton, impossible de revenir à l\'app une fois le PDF affiché.
+      '<button type="button" class="back-btn" onclick="(function(){ try{ window.close(); }catch(e){} setTimeout(function(){ location.href=\'admin.html\'; }, 150); })()">← Retour à l\'app</button>' +
       '<div class="brand">VTC PLUS</div>' + bodyHtml +
       '<div class="footer">Généré le ' + new Date().toLocaleDateString('fr-FR') + ' à ' + new Date().toLocaleTimeString('fr-FR') + '</div>' +
       '</body></html>'
@@ -2220,6 +2289,12 @@ h2{font-size:38px}
       if(!unsubscribe) startListening();
       if(!vehiclesUnsub) startFleetListeners();
       renderStats();
+      if ('Notification' in window){
+        refreshPushButton();
+        // Si déjà autorisé lors d'une visite précédente, on ré-enregistre silencieusement
+        // le jeton (il arrive qu'il change) sans redemander la permission.
+        if (Notification.permission === 'granted') enablePushNotifications();
+      }
     } else {
       document.getElementById("dashboard").style.display="none";
       document.getElementById("login").style.display="flex";
