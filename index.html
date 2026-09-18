@@ -64,7 +64,7 @@
   .hamburger-btn span{display:block; width:18px; height:1.5px; background:var(--text); position:relative;}
   .hamburger-btn span::before, .hamburger-btn span::after{content:""; position:absolute; left:0; width:18px; height:1.5px; background:var(--text); transition:transform .2s;}
   .hamburger-btn span::before{top:-6px;} .hamburger-btn span::after{top:6px;}
-  .mobile-nav{display:none; position:fixed; top:88px; left:0; right:0; bottom:0; background:var(--bg); z-index:19; padding:28px 24px; flex-direction:column; gap:6px; overflow-y:auto;}
+  .mobile-nav{display:none; position:fixed; top:88px; left:0; right:0; bottom:0; background:var(--bg); z-index:1999; padding:28px 24px; flex-direction:column; gap:6px; overflow-y:auto;}
   .mobile-nav.show{display:flex;}
   .mobile-nav a{font-size:17px; font-weight:500; color:var(--text); padding:14px 4px; border-bottom:1px solid var(--border);}
   .lang-toggle{display:flex; border:1px solid var(--border); border-radius:99px; overflow:hidden; flex-shrink:0;}
@@ -74,7 +74,7 @@
 </head>
 <body>
 
-<header style="position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
+<header style="position:sticky; top:0; z-index:2000; display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
   <img src="logo.jpg" alt="VTC PLUS" style="height:52px; width:auto;">
   <nav class="desktop-nav" style="display:flex; align-items:center; gap:32px;">
     <a href="#flotte" data-i18n="nav.fleet" style="font-size:15px; font-weight:500; color:var(--muted);">Flotte</a>
@@ -1174,6 +1174,20 @@
     var btnM = document.getElementById('install-app-btn-m');
     if (btn) btn.style.display = 'none';
     if (btnM) btnM.style.display = 'none';
+  });
+
+  // Sur iOS, l'événement beforeinstallprompt n'existe pas : on affiche quand même
+  // le bouton (il ouvrira les instructions manuelles via installApp()).
+  document.addEventListener('DOMContentLoaded', function(){
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var isStandalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (isIOS && !isStandalone){
+      var btn = document.getElementById('install-app-btn');
+      var btnM = document.getElementById('install-app-btn-m');
+      if (btn) btn.style.display = 'inline-block';
+      if (btnM) btnM.style.display = 'inline-block';
+    }
   });
 </script>
 
