@@ -151,6 +151,7 @@
 
     <button type="button" onclick="calculateRoute()" class="btn btn-outline" data-i18n="res.calcRoute" style="justify-content:center;" id="route-btn">Calculer l'itinéraire</button>
     <div id="route-status" style="font-size:13px; color:var(--muted); display:none;"></div>
+    <a id="out-of-zone-link" href="#" target="_blank" rel="noopener" data-i18n="js.contactWhatsapp" style="display:none; margin-top:-8px; font-size:13px; color:var(--gold-bright); text-decoration:underline;">📱 Nous contacter sur WhatsApp pour ce trajet</a>
     <div style="position:relative;">
       <div id="route-map" class="route-map-box" style="width:100%; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
       <button type="button" id="locate-btn" onclick="recenterToMyLocation()" title="Ma position" aria-label="Ma position" style="position:absolute; bottom:12px; right:12px; z-index:1000; width:40px; height:40px; border-radius:50%; background:#fff; border:1px solid rgba(0,0,0,.2); box-shadow:0 1px 4px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;">🎯</button>
@@ -517,7 +518,9 @@
     'js.mapHintPickup': {fr:'💡 Appuyez sur la carte pour définir votre point de départ.', en:'💡 Tap the map to set your pickup location.'},
     'js.mapHintDest': {fr:'💡 Appuyez sur la carte pour définir votre destination.', en:'💡 Tap the map to set your destination.'},
     'js.mapHintBoth': {fr:'💡 Appuyez à nouveau sur la carte pour changer la destination.', en:'💡 Tap the map again to change the destination.'},
-    'js.locateError': {fr:"Impossible d'accéder à votre position. Vérifiez que la localisation est autorisée pour ce site dans les réglages de votre navigateur.", en:"Couldn't access your location. Check that location access is allowed for this site in your browser settings."}
+    'js.locateError': {fr:"Impossible d'accéder à votre position. Vérifiez que la localisation est autorisée pour ce site dans les réglages de votre navigateur.", en:"Couldn't access your location. Check that location access is allowed for this site in your browser settings."},
+    'js.outOfZone': {fr:"Ce trajet dépasse notre zone de service habituelle pour une course classique", en:'This trip is beyond our usual service area for a standard ride'},
+    'js.contactWhatsapp': {fr:'📱 Nous contacter sur WhatsApp pour ce trajet', en:'📱 Contact us on WhatsApp for this trip'}
   };
 
   function t(key){
@@ -790,6 +793,27 @@
     return geocode(text);
   }
 
+  var MAX_DISTANCE_KM = 150; // au-delà, hors zone de service pour une course classique — contact direct pour devis sur mesure
+
+  function drawRouteOnMap(route, a, b, pickup, dest, lineColor){
+    var mapEl = document.getElementById('route-map');
+    mapEl.style.display = 'block';
+    initMap();
+    requestAnimationFrame(function(){
+      routeMap.invalidateSize();
+      if (routeLine) routeMap.removeLayer(routeLine);
+      if (markerA) routeMap.removeLayer(markerA);
+      if (markerB) routeMap.removeLayer(markerB);
+      var coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
+      routeLine = L.polyline(coords, { color: lineColor, weight: 4 }).addTo(routeMap);
+      markerA = L.marker([a.lat, a.lon], { icon: coloredPin('#2f8a5c') }).addTo(routeMap).bindPopup(t('js.departFrom') + pickup);
+      markerB = L.marker([b.lat, b.lon], { icon: coloredPin('#c94141') }).addTo(routeMap).bindPopup(t('js.destTo') + dest);
+      routeMap.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
+      setTimeout(function(){ routeMap.invalidateSize(); }, 200);
+      updateMapHint();
+    });
+  }
+
   function calculateRoute(){
     var pickup = document.getElementById('f-pickup').value.trim();
     var dest = document.getElementById('f-dest').value.trim();
@@ -824,6 +848,21 @@
         var km = route.distance / 1000;
         var mins = Math.round(route.duration / 60);
 
+        if (km > MAX_DISTANCE_KM){
+          status.style.display = 'block';
+          status.textContent = t('js.outOfZone') + ' (' + km.toFixed(0) + ' km).';
+          document.getElementById('route-result').style.display = 'none';
+          document.getElementById('f-km').value = '';
+          updateEstimate();
+          var waMsg = encodeURIComponent('Bonjour VTC PLUS, je souhaite un devis pour ce trajet : ' + pickup + ' → ' + dest + ' (' + km.toFixed(0) + ' km).');
+          var waLink = document.getElementById('out-of-zone-link');
+          waLink.href = 'https://wa.me/261381748591?text=' + waMsg;
+          waLink.style.display = 'inline-block';
+          drawRouteOnMap(route, a, b, pickup, dest, '#D95757');
+          return;
+        }
+        document.getElementById('out-of-zone-link').style.display = 'none';
+
         status.style.display = 'none';
         document.getElementById('route-result').style.display = 'flex';
         document.getElementById('route-distance').textContent = km.toFixed(1) + " km";
@@ -832,25 +871,7 @@
         document.getElementById('f-km').value = km.toFixed(1);
         updateEstimate();
 
-        var mapEl = document.getElementById('route-map');
-        mapEl.style.display = 'block';
-        initMap();
-
-        requestAnimationFrame(function(){
-          routeMap.invalidateSize();
-
-          if (routeLine) routeMap.removeLayer(routeLine);
-          if (markerA) routeMap.removeLayer(markerA);
-          if (markerB) routeMap.removeLayer(markerB);
-
-          var coords = route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; });
-          routeLine = L.polyline(coords, { color: '#C9A45C', weight: 4 }).addTo(routeMap);
-          markerA = L.marker([a.lat, a.lon], { icon: coloredPin('#2f8a5c') }).addTo(routeMap).bindPopup(t('js.departFrom') + pickup);
-          markerB = L.marker([b.lat, b.lon], { icon: coloredPin('#c94141') }).addTo(routeMap).bindPopup(t('js.destTo') + dest);
-          routeMap.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
-          setTimeout(function(){ routeMap.invalidateSize(); }, 200);
-          updateMapHint();
-        });
+        drawRouteOnMap(route, a, b, pickup, dest, '#C9A45C');
       }).catch(function(){
         status.textContent = t('js.routeServiceDown');
         btn.disabled = false;
