@@ -74,7 +74,15 @@
 </head>
 <body>
 
-<header style="position:sticky; top:0; z-index:2000; display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
+<div id="sticky-top-wrap" style="position:sticky; top:0; z-index:2001;">
+
+  <div id="install-banner" style="display:none; position:relative; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; padding:10px 44px; background:var(--gold); color:#141112; font-size:13px; font-weight:600; text-align:center; font-family:'Manrope',sans-serif;">
+    <span data-i18n="nav.installBannerText">📲 Installez VTC PLUS sur votre écran d'accueil pour un accès plus rapide</span>
+    <button type="button" onclick="installApp()" data-i18n="nav.installApp" style="background:#141112; color:var(--gold-bright); border:none; padding:7px 16px; border-radius:2px; font-weight:700; cursor:pointer; font-size:12.5px; font-family:'Manrope',sans-serif;">📲 Installer l'app</button>
+    <button type="button" onclick="dismissInstallBanner()" aria-label="Fermer" style="background:transparent; border:none; color:#141112; font-size:20px; cursor:pointer; line-height:1; padding:0 6px; position:absolute; right:12px; top:50%; transform:translateY(-50%);">×</button>
+  </div>
+
+<header style="display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
   <img src="logo.jpg" alt="VTC PLUS" style="height:52px; width:auto;">
   <nav class="desktop-nav" style="display:flex; align-items:center; gap:32px;">
     <a href="#flotte" data-i18n="nav.fleet" style="font-size:15px; font-weight:500; color:var(--muted);">Flotte</a>
@@ -91,6 +99,8 @@
   </nav>
   <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Menu"><span></span></button>
 </header>
+
+</div>
 
 <div class="mobile-nav" id="mobile-nav">
   <a href="#flotte" data-i18n="nav.fleet" onclick="toggleMobileNav()">Flotte</a>
@@ -444,6 +454,7 @@
   var STATIC_EN = {
     'nav.fleet':'Fleet', 'nav.pricing':'Pricing', 'nav.services':'Services', 'nav.how':'How it works',
     'nav.contact':'Contact', 'nav.book':'Book now', 'nav.installApp':'📲 Install app',
+    'nav.installBannerText':'📲 Install VTC PLUS on your home screen for faster access',
     'hero.title':'Travel like a VIP in Antananarivo.',
     'hero.tagline':'More than a ride…',
     'hero.subtitle':'VTC PLUS wraps your journeys in comfort, punctuality and elegance — the reference for premium private transport in Madagascar. Two tiers, one standard: excellence.',
@@ -537,7 +548,10 @@
   }
 
   function toggleMobileNav(){
-    document.getElementById('mobile-nav').classList.toggle('show');
+    var nav = document.getElementById('mobile-nav');
+    var wrap = document.getElementById('sticky-top-wrap');
+    if (wrap) nav.style.top = wrap.offsetHeight + 'px';
+    nav.classList.toggle('show');
   }
 
   function applyTranslations(){
@@ -1173,10 +1187,21 @@
     var display = isStandalone ? 'none' : 'inline-block';
     if (btn) btn.style.display = display;
     if (btnM) btnM.style.display = display;
+
+    var banner = document.getElementById('install-banner');
+    var dismissed = false;
+    try{ dismissed = localStorage.getItem('vtcplus_install_banner_dismissed') === '1'; }catch(e){}
+    if (banner) banner.style.display = (isStandalone || dismissed) ? 'none' : 'flex';
   }
 
+  window.dismissInstallBanner = function(){
+    var banner = document.getElementById('install-banner');
+    if (banner) banner.style.display = 'none';
+    try{ localStorage.setItem('vtcplus_install_banner_dismissed', '1'); }catch(e){}
+  };
+
   window.addEventListener('appinstalled', refreshInstallButtons);
-  document.addEventListener('DOMContentLoaded', refreshInstallButtons);
+  refreshInstallButtons(); // ce script est en bas de page : le DOM est déjà prêt, pas besoin d'attendre un événement
 </script>
 
 </body>
