@@ -151,7 +151,10 @@
 
     <button type="button" onclick="calculateRoute()" class="btn btn-outline" data-i18n="res.calcRoute" style="justify-content:center;" id="route-btn">Calculer l'itinéraire</button>
     <div id="route-status" style="font-size:13px; color:var(--muted); display:none;"></div>
-    <div id="route-map" class="route-map-box" style="width:100%; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
+    <div style="position:relative;">
+      <div id="route-map" class="route-map-box" style="width:100%; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
+      <button type="button" id="locate-btn" onclick="recenterToMyLocation()" title="Ma position" aria-label="Ma position" style="position:absolute; bottom:12px; right:12px; z-index:1000; width:40px; height:40px; border-radius:50%; background:#fff; border:1px solid rgba(0,0,0,.2); box-shadow:0 1px 4px rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;">🎯</button>
+    </div>
     <div id="map-hint" style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:-8px;"></div>
     <div id="route-result" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--text);">
       <span id="route-distance"></span>
@@ -513,7 +516,8 @@
     'js.mapLocating': {fr:"Recherche de l'adresse…", en:'Looking up address…'},
     'js.mapHintPickup': {fr:'💡 Appuyez sur la carte pour définir votre point de départ.', en:'💡 Tap the map to set your pickup location.'},
     'js.mapHintDest': {fr:'💡 Appuyez sur la carte pour définir votre destination.', en:'💡 Tap the map to set your destination.'},
-    'js.mapHintBoth': {fr:'💡 Appuyez à nouveau sur la carte pour changer la destination.', en:'💡 Tap the map again to change the destination.'}
+    'js.mapHintBoth': {fr:'💡 Appuyez à nouveau sur la carte pour changer la destination.', en:'💡 Tap the map again to change the destination.'},
+    'js.locateError': {fr:"Impossible d'accéder à votre position. Vérifiez que la localisation est autorisée pour ce site dans les réglages de votre navigateur.", en:"Couldn't access your location. Check that location access is allowed for this site in your browser settings."}
   };
 
   function t(key){
@@ -666,22 +670,41 @@
   // Route calculation (OpenStreetMap Nominatim + OSRM — free, no API key)
   var routeMap = null, routeLine = null, markerA = null, markerB = null, userMarker = null;
 
+  function placeUserMarker(lat, lon){
+    var hereIcon = L.divIcon({
+      className: '',
+      html: '<div style="width:16px; height:16px; border-radius:50%; background:#3b82f6; border:3px solid #fff; box-shadow:0 0 0 5px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.4);"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+    if (userMarker) routeMap.removeLayer(userMarker);
+    userMarker = L.marker([lat, lon], { icon: hereIcon, zIndexOffset: -100 }).addTo(routeMap);
+  }
+
   function geolocateUser(){
     if (!navigator.geolocation || !routeMap) return;
     navigator.geolocation.getCurrentPosition(function(pos){
       var lat = pos.coords.latitude, lon = pos.coords.longitude;
       routeMap.setView([lat, lon], 14);
-      var hereIcon = L.divIcon({
-        className: '',
-        html: '<div style="width:16px; height:16px; border-radius:50%; background:#3b82f6; border:3px solid #fff; box-shadow:0 0 0 5px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.4);"></div>',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
-      });
-      if (userMarker) routeMap.removeLayer(userMarker);
-      userMarker = L.marker([lat, lon], { icon: hereIcon, zIndexOffset: -100 }).addTo(routeMap);
-    }, function(){ /* refusé ou indisponible — on garde la vue par défaut sur Antananarivo */ },
+      placeUserMarker(lat, lon);
+    }, function(){ /* refusé ou indisponible au chargement — on garde la vue par défaut, sans déranger */ },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
   }
+
+  window.recenterToMyLocation = function(){
+    if (!routeMap || !navigator.geolocation) return;
+    var btn = document.getElementById('locate-btn');
+    if (btn) btn.style.opacity = '0.5';
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      routeMap.flyTo([lat, lon], 15, { duration: 1 });
+      placeUserMarker(lat, lon);
+      if (btn) btn.style.opacity = '1';
+    }, function(){
+      if (btn) btn.style.opacity = '1';
+      alert(t('js.locateError'));
+    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+  };
 
   function coloredPin(color){
     return L.divIcon({
