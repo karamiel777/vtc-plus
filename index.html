@@ -455,7 +455,7 @@
     'nav.fleet':'Fleet', 'nav.pricing':'Pricing', 'nav.services':'Services', 'nav.how':'How it works',
     'nav.contact':'Contact', 'nav.book':'Book now', 'nav.installApp':'📲 Install app',
     'nav.installBannerText':'📲 Install VTC PLUS on your home screen for faster access',
-    'ios.title':'Install on iPhone', 'ios.close':'Got it',
+    'ios.prev':'Previous',
     'hero.title':'Travel like a VIP in Antananarivo.',
     'hero.tagline':'More than a ride…',
     'hero.subtitle':'VTC PLUS wraps your journeys in comfort, punctuality and elegance — the reference for premium private transport in Madagascar. Two tiers, one standard: excellence.',
@@ -1161,25 +1161,29 @@
     deferredInstallPrompt = e;
   });
 
-  var IOS_MODAL_STEPS = {
-    fr: [
-      "Appuyez sur l'icône <strong>Partager</strong> en bas de Safari",
-      "Faites défiler et choisissez <strong>\"Sur l'écran d'accueil\"</strong>",
-      "Confirmez en appuyant sur <strong>\"Ajouter\"</strong> en haut à droite"
-    ],
-    en: [
-      "Tap the <strong>Share</strong> icon at the bottom of Safari",
-      "Scroll and choose <strong>\"Add to Home Screen\"</strong>",
-      "Confirm by tapping <strong>\"Add\"</strong> at the top right"
-    ]
-  };
-  function updateIosModalText(){
-    var steps = IOS_MODAL_STEPS[currentLang] || IOS_MODAL_STEPS.fr;
-    for (var i = 0; i < 3; i++){
-      var el = document.getElementById('ios-step' + (i + 1) + '-text');
-      if (el) el.innerHTML = steps[i];
-    }
+  // Tutoriel visuel iOS : 5 captures d'écran réelles (ios-install-1.jpg … ios-install-5.jpg),
+  // affichées une par une avec Précédent/Suivant. Uniquement montré sur iPhone/iPad (voir
+  // installApp() plus bas) : sur Android/Chrome, l'invite d'installation native s'affiche
+  // automatiquement (deferredInstallPrompt), pas besoin de ce tutoriel.
+  var IOS_TUTO_TOTAL = 5;
+  var iosTutoIndex = 1;
+
+  function iosTutoRender(){
+    var img = document.getElementById('ios-tuto-img');
+    if (img) img.src = 'ios-install-' + iosTutoIndex + '.jpg';
+    var prev = document.getElementById('ios-tuto-prev');
+    var next = document.getElementById('ios-tuto-next');
+    if (prev) prev.style.visibility = (iosTutoIndex === 1) ? 'hidden' : 'visible';
+    if (next) next.textContent = (iosTutoIndex === IOS_TUTO_TOTAL)
+      ? (currentLang === 'en' ? 'Got it ✓' : 'Compris ✓')
+      : (currentLang === 'en' ? 'Next →' : 'Suivant →');
   }
+
+  window.iosTutoStep = function(dir){
+    if (dir > 0 && iosTutoIndex === IOS_TUTO_TOTAL){ closeIosInstallModal(); return; }
+    iosTutoIndex = Math.min(IOS_TUTO_TOTAL, Math.max(1, iosTutoIndex + dir));
+    iosTutoRender();
+  };
 
   window.installApp = function(){
     if (deferredInstallPrompt){
@@ -1190,7 +1194,8 @@
     // Pas d'invite native disponible (iOS, app déjà proposée une fois, navigateur non Chromium…) : on explique la manip.
     var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     if (isIOS){
-      updateIosModalText();
+      iosTutoIndex = 1;
+      iosTutoRender();
       var modal = document.getElementById('ios-install-modal');
       if (modal) modal.style.display = 'flex';
     } else {
@@ -1230,35 +1235,16 @@
   refreshInstallButtons(); // ce script est en bas de page : le DOM est déjà prêt, pas besoin d'attendre un événement
 </script>
 
-<div id="ios-install-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:3000; align-items:center; justify-content:center; padding:20px;">
-  <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:30px 26px; max-width:380px; width:100%;">
-    <h3 data-i18n="ios.title" style="font-family:'Cormorant Garamond', serif; font-size:24px; color:var(--gold-bright); margin:0 0 22px; text-align:center;">Installer sur iPhone</h3>
+<div id="ios-install-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:3000; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; max-width:340px; width:100%; overflow:hidden; position:relative;">
+    <button type="button" onclick="closeIosInstallModal()" aria-label="Fermer" style="position:absolute; top:10px; right:10px; z-index:2; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,0.55); border:none; color:#fff; font-size:15px; line-height:1; cursor:pointer;">✕</button>
 
-    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:20px;">
-      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">1</div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <svg width="22" height="26" viewBox="0 0 24 28" fill="none" style="flex-shrink:0;"><path d="M12 1v16M6 7L12 1L18 7" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="12" width="20" height="14" rx="2" stroke="#C9A45C" stroke-width="2"/></svg>
-        <span id="ios-step1-text" style="font-size:14px; color:var(--text); line-height:1.5;">Appuyez sur l'icône <strong>Partager</strong> en bas de Safari</span>
-      </div>
+    <img id="ios-tuto-img" src="ios-install-1.jpg" alt="Étape d'installation VTC PLUS sur iPhone" style="display:block; width:100%; height:auto; max-height:68vh; object-fit:contain; background:#0B0B0C;">
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px;">
+      <button type="button" id="ios-tuto-prev" onclick="iosTutoStep(-1)" class="btn" style="padding:9px 14px; font-size:13px;">← <span data-i18n="ios.prev">Précédent</span></button>
+      <button type="button" id="ios-tuto-next" onclick="iosTutoStep(1)" class="btn btn-gold" style="padding:9px 18px; font-size:13px;">Suivant →</button>
     </div>
-
-    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:20px;">
-      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">2</div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#C9A45C" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/></svg>
-        <span id="ios-step2-text" style="font-size:14px; color:var(--text); line-height:1.5;">Faites défiler et choisissez <strong>"Sur l'écran d'accueil"</strong></span>
-      </div>
-    </div>
-
-    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:26px;">
-      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">3</div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;"><path d="M5 12l5 5L19 7" stroke="#C9A45C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span id="ios-step3-text" style="font-size:14px; color:var(--text); line-height:1.5;">Confirmez en appuyant sur <strong>"Ajouter"</strong> en haut à droite</span>
-      </div>
-    </div>
-
-    <button type="button" onclick="closeIosInstallModal()" data-i18n="ios.close" class="btn btn-gold" style="width:100%; justify-content:center;">Compris</button>
   </div>
 </div>
 
