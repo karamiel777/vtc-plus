@@ -1,4 +1,5 @@
 {
+  "id": "./admin.html",
   "name": "VTC PLUS — Administration",
   "short_name": "VTC Admin",
   "description": "Tableau de bord de gestion VTC PLUS (réservations, flotte, finances).",

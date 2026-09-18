@@ -1150,7 +1150,7 @@
   // ---------- PWA : installation "à la app" ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function(){
-      navigator.serviceWorker.register('service-worker.js').catch(function(){ /* pas grave si indisponible */ });
+      navigator.serviceWorker.register('service-worker.js', { scope: './index.html' }).catch(function(){ /* pas grave si indisponible */ });
     });
   }
 

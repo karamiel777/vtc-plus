@@ -1,9 +1,10 @@
 {
+  "id": "./index.html",
   "name": "VTC PLUS — Réservation",
   "short_name": "VTC PLUS",
   "description": "Réservez votre trajet privé à Antananarivo en quelques clics.",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "./index.html",
   "display": "standalone",
   "background_color": "#0B0B0C",
   "theme_color": "#0B0B0C",
