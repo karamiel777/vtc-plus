@@ -702,6 +702,9 @@
       if (markerB) routeMap.removeLayer(markerB);
       markerB = L.marker([lat, lon], { icon: coloredPin('#c94141') }).addTo(routeMap).bindPopup(t('js.destTo') + label);
     }
+    // Amène la carte sur le point choisi, même s'il est loin de la vue actuelle
+    // (ex : géolocalisé à Nosy Be mais adresse choisie à Antananarivo).
+    routeMap.flyTo([lat, lon], Math.max(routeMap.getZoom(), 14), { duration: 1 });
   }
 
   function onMapClick(e){
