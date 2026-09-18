@@ -614,9 +614,39 @@
     debounceTimers[key] = setTimeout(fn, delay);
   }
 
+  // Photon (photon.komoot.io) : recherche plus tolérante que Nominatim pour les noms
+  // d'établissements (écoles, hôtels…). Utilisé en secours quand Nominatim ne trouve rien.
+  function photonDisplayName(props){
+    var parts = [];
+    if (props.name) parts.push(props.name);
+    var street = props.street ? (props.housenumber ? props.housenumber + ' ' + props.street : props.street) : null;
+    if (street) parts.push(street);
+    if (props.district && props.district !== props.name) parts.push(props.district);
+    if (props.city) parts.push(props.city);
+    if (props.state) parts.push(props.state);
+    if (props.country) parts.push(props.country);
+    return parts.filter(Boolean).join(', ');
+  }
+
+  function fetchPhoton(query, limit){
+    var url = "https://photon.komoot.io/api/?q=" + encodeURIComponent(query) + "&lat=-18.8792&lon=47.5079&limit=" + limit + "&lang=fr";
+    return fetch(url).then(function(r){ return r.json(); }).then(function(data){
+      return (data.features || []).map(function(f){
+        return {
+          display_name: photonDisplayName(f.properties),
+          lat: String(f.geometry.coordinates[1]),
+          lon: String(f.geometry.coordinates[0])
+        };
+      }).filter(function(r){ return r.display_name; });
+    }).catch(function(){ return []; });
+  }
+
   function fetchSuggestions(query){
     var url = "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=mg&viewbox=" + TANA_VIEWBOX + "&bounded=1&q=" + encodeURIComponent(query);
-    return fetch(url).then(function(r){ return r.json(); }).catch(function(){ return []; });
+    return fetch(url).then(function(r){ return r.json(); }).catch(function(){ return []; }).then(function(results){
+      if (results && results.length) return results;
+      return fetchPhoton(query, 5);
+    });
   }
 
   function setupAutocomplete(fieldId){
@@ -781,9 +811,13 @@
     var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mg&viewbox=" + TANA_VIEWBOX + "&bounded=1&q=" + encodeURIComponent(query);
     return fetch(url)
       .then(function(r){ return r.json(); })
+      .catch(function(){ return []; })
       .then(function(results){
-        if (!results || !results.length) return null;
-        return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon), label: results[0].display_name };
+        if (results && results.length) return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon), label: results[0].display_name };
+        return fetchPhoton(query, 1).then(function(alt){
+          if (!alt.length) return null;
+          return { lat: parseFloat(alt[0].lat), lon: parseFloat(alt[0].lon), label: alt[0].display_name };
+        });
       });
   }
 
