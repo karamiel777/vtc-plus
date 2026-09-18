@@ -7,6 +7,11 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B0B0C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VTC PLUS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -81,6 +86,7 @@
       <button type="button" id="lang-fr" onclick="setLang('fr')">FR</button>
       <button type="button" id="lang-en" onclick="setLang('en')">EN</button>
     </div>
+    <button type="button" id="install-app-btn" onclick="installApp()" data-i18n="nav.installApp" style="display:none; padding:10px 18px; font-size:13px; border-radius:2px; background:transparent; border:1px solid var(--gold); color:var(--gold-bright); cursor:pointer; font-family:'Manrope',sans-serif; font-weight:600;">📲 Installer l'app</button>
     <a href="#reservation" data-i18n="nav.book" class="btn btn-gold" style="padding:12px 26px; font-size:14px;">Réserver</a>
   </nav>
   <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Menu"><span></span></button>
@@ -96,6 +102,7 @@
     <button type="button" id="lang-fr-m" onclick="setLang('fr')">FR</button>
     <button type="button" id="lang-en-m" onclick="setLang('en')">EN</button>
   </div>
+  <button type="button" id="install-app-btn-m" onclick="installApp()" data-i18n="nav.installApp" style="display:none; padding:12px 18px; font-size:13px; border-radius:2px; background:transparent; border:1px solid var(--gold); color:var(--gold-bright); cursor:pointer; font-family:'Manrope',sans-serif; font-weight:600; margin-top:14px; align-self:flex-start;">📲 Installer l'app</button>
   <a href="#reservation" data-i18n="nav.book" class="btn btn-gold" style="justify-content:center; margin-top:18px;" onclick="toggleMobileNav()">Réserver</a>
 </div>
 
@@ -436,7 +443,7 @@
 
   var STATIC_EN = {
     'nav.fleet':'Fleet', 'nav.pricing':'Pricing', 'nav.services':'Services', 'nav.how':'How it works',
-    'nav.contact':'Contact', 'nav.book':'Book now',
+    'nav.contact':'Contact', 'nav.book':'Book now', 'nav.installApp':'📲 Install app',
     'hero.title':'Travel like a VIP in Antananarivo.',
     'hero.tagline':'More than a ride…',
     'hero.subtitle':'VTC PLUS wraps your journeys in comfort, punctuality and elegance — the reference for premium private transport in Madagascar. Two tiers, one standard: excellence.',
@@ -1122,6 +1129,52 @@
   }
 
   loadClientData();
+</script>
+
+<script>
+  // ---------- PWA : installation "à la app" ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('service-worker.js').catch(function(){ /* pas grave si indisponible */ });
+    });
+  }
+
+  var deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    var btn = document.getElementById('install-app-btn');
+    var btnM = document.getElementById('install-app-btn-m');
+    if (btn) btn.style.display = 'inline-block';
+    if (btnM) btnM.style.display = 'inline-block';
+  });
+
+  window.installApp = function(){
+    if (deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function(){ deferredInstallPrompt = null; });
+      return;
+    }
+    // iOS Safari ne propose pas d'installation automatique : on explique la manip.
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS){
+      alert(currentLang === 'en'
+        ? "On iPhone/iPad: tap the Share icon, then \"Add to Home Screen\"."
+        : "Sur iPhone/iPad : appuyez sur l'icône Partager, puis \"Sur l'écran d'accueil\".");
+    } else {
+      alert(currentLang === 'en'
+        ? "Open your browser menu and choose \"Install app\" or \"Add to Home Screen\"."
+        : "Ouvrez le menu de votre navigateur et choisissez \"Installer l'application\" ou \"Ajouter à l'écran d'accueil\".");
+    }
+  };
+
+  window.addEventListener('appinstalled', function(){
+    var btn = document.getElementById('install-app-btn');
+    var btnM = document.getElementById('install-app-btn-m');
+    if (btn) btn.style.display = 'none';
+    if (btnM) btnM.style.display = 'none';
+  });
 </script>
 
 </body>
