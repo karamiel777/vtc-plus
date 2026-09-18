@@ -580,9 +580,9 @@ h2{font-size:38px}
           <label>Mode de paiement</label>
           <select id="a-payment">
             <option value="">— Non précisé —</option>
-            <option value="mobile_money">Mobile money (Orange/Telma)</option>
-            <option value="cash_driver">Espèces (chauffeur)</option>
-            <option value="paid_by_direction">Payé par la direction</option>
+            <option value="mobile_money">Client a payé par Mobile Money</option>
+            <option value="cash_driver">Client a payé en espèces (remis au chauffeur)</option>
+            <option value="paid_by_direction">Course prise en charge par la direction (non payée par le client)</option>
           </select>
         </div>
       </div>
@@ -619,9 +619,9 @@ h2{font-size:38px}
         <label>Mode de paiement</label>
         <select id="m-payment">
           <option value="">— Non précisé —</option>
-          <option value="mobile_money">Mobile money (Orange/Telma)</option>
-          <option value="cash_driver">Espèces (chauffeur)</option>
-          <option value="paid_by_direction">Payé par la direction</option>
+          <option value="mobile_money">Client a payé par Mobile Money</option>
+          <option value="cash_driver">Client a payé en espèces (remis au chauffeur)</option>
+          <option value="paid_by_direction">Course prise en charge par la direction (non payée par le client)</option>
         </select>
       </div>
       <div class="field">
@@ -668,7 +668,7 @@ h2{font-size:38px}
 
   const auth = getAuth(app);
   const MISE_A_DISPO_RATES = { Comfort: 120000, Premium: 150000 };
-  const PAYMENT_LABEL = { mobile_money:'Mobile money', cash_driver:'Espèces (chauffeur)', paid_by_direction:'Payé par la direction' };
+  const PAYMENT_LABEL = { mobile_money:'Mobile Money (client)', cash_driver:'Espèces (client → chauffeur)', paid_by_direction:'Pris en charge par la direction' };
   const RATES = { Comfort: 4000, Premium: 5000 };
   const MIN_FARE = { Comfort: 20000, Premium: 25000 };
   const SOURCE_LABEL = { site:"Site web", whatsapp:"WhatsApp", phone:"Téléphone" };
