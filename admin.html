@@ -586,6 +586,7 @@ h2{font-size:38px}
           </select>
         </div>
       </div>
+      <div class="field" id="a-mm-ref-field" style="display:none;"><label>Référence Mobile Money</label><input id="a-mm-ref" placeholder="Numéro de transaction ou numéro de téléphone du client"></div>
       <div class="grid2">
         <div class="field">
           <label>Statut de paiement</label>
@@ -624,6 +625,7 @@ h2{font-size:38px}
           <option value="paid_by_direction">Course prise en charge par la direction (non payée par le client)</option>
         </select>
       </div>
+      <div class="field" id="m-mm-ref-field" style="display:none;"><label>Référence Mobile Money</label><input id="m-mm-ref" placeholder="Numéro de transaction ou numéro de téléphone du client"></div>
       <div class="field">
         <label>Statut</label>
         <select id="m-status">
@@ -686,6 +688,13 @@ h2{font-size:38px}
     if (pm === 'mobile_money') return 'mobile_money';
     if (isExpense) return pm === 'cash' ? 'cash' : 'other';
     return pm === 'cash_driver' ? 'cash' : 'other';
+  }
+  function driverForReservation(r){
+    if (!r.assignedVehicleId) return null;
+    var v = vehicles.find(function(x){ return x.id === r.assignedVehicleId; });
+    if (!v || !v.assignedDriverId) return null;
+    var d = drivers.find(function(x){ return x.id === v.assignedDriverId; });
+    return d ? d.name : null;
   }
 
   let requests = [];
@@ -758,6 +767,8 @@ h2{font-size:38px}
     document.getElementById('manage-summary').innerHTML = '<strong style="color:var(--text);">'+r.name+'</strong> — '+r.pickup+' → '+r.dest+'<br>'+isoToDisplay(r.date)+(r.time?' à '+r.time:'')+' · '+r.tier+' · '+r.estimate;
     fillVehicleSelect(document.getElementById('m-vehicle'), r.assignedVehicleId||'');
     document.getElementById('m-payment').value = r.paymentMethod || '';
+    document.getElementById('m-mm-ref').value = r.mobileMoneyRef || '';
+    document.getElementById('m-mm-ref-field').style.display = (r.paymentMethod === 'mobile_money') ? 'block' : 'none';
     document.getElementById('m-status').value = r.status || 'new';
     document.getElementById('m-payment-status').value = effectivePaymentStatus(r);
     document.getElementById('m-amount-paid').value = effectiveAmountPaid(r);
@@ -767,6 +778,10 @@ h2{font-size:38px}
   };
   window.closeManageModal = function(){ document.getElementById('manage-modal').classList.remove('show'); };
 
+  document.getElementById('m-payment').addEventListener('change', function(){
+    document.getElementById('m-mm-ref-field').style.display = (this.value === 'mobile_money') ? 'block' : 'none';
+  });
+
   document.getElementById('manage-form').addEventListener('submit', async function(e){
     e.preventDefault();
     if (!managingId) return;
@@ -774,9 +789,11 @@ h2{font-size:38px}
     var btn = document.getElementById('manage-submit-btn');
     btn.disabled = true; btn.textContent = 'Enregistrement…';
     try{
+      var mPayment = document.getElementById('m-payment').value || null;
       await updateDoc(doc(db,'reservations',managingId), {
         assignedVehicleId: document.getElementById('m-vehicle').value || null,
-        paymentMethod: document.getElementById('m-payment').value || null,
+        paymentMethod: mPayment,
+        mobileMoneyRef: (mPayment === 'mobile_money') ? document.getElementById('m-mm-ref').value.trim() : '',
         status: document.getElementById('m-status').value,
         paymentStatus: document.getElementById('m-payment-status').value,
         amountPaid: parseFloat(document.getElementById('m-amount-paid').value) || 0,
@@ -1691,11 +1708,20 @@ h2{font-size:38px}
     periodExpenses.forEach(function(x){ var k=x.paymentMethod||'other'; depByPay[k]=(depByPay[k]||0)+(x.amount||0); });
 
     var entreeCash=0, sortieCash=0, entreeMM=0, sortieMM=0;
+    var cashByDriver = {};
+    var mmEntries = [];
     periodReservations.forEach(function(r){
       var paid = effectiveAmountPaid(r);
       if (paid>0){
         var b = tresorBucket(r.paymentMethod, false);
-        if (b==='cash') entreeCash += paid; else if (b==='mobile_money') entreeMM += paid;
+        if (b==='cash'){
+          entreeCash += paid;
+          var drv = driverForReservation(r) || 'Chauffeur non renseigné';
+          cashByDriver[drv] = (cashByDriver[drv]||0) + paid;
+        } else if (b==='mobile_money'){
+          entreeMM += paid;
+          mmEntries.push({ date: r.date, client: r.name, amount: paid, ref: r.mobileMoneyRef || '—' });
+        }
       }
     });
     periodExpenses.forEach(function(x){
@@ -1731,6 +1757,12 @@ h2{font-size:38px}
       '<div class="day-row"><span>Mobile money dépensé</span><span>'+fmtAr(sortieMM)+'</span></div>' +
       '<div class="day-row"><span>Solde mobile money</span><span>'+fmtAr(entreeMM-sortieMM)+'</span></div>' +
     '</div>';
+    html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Espèces reçues par chauffeur</h3>' +
+      (Object.keys(cashByDriver).length ? Object.keys(cashByDriver).map(function(k){ return '<div class="day-row"><span>'+k+'</span><span>'+fmtAr(cashByDriver[k])+'</span></div>'; }).join('') : '<div class="day-row"><span>Aucune espèce reçue sur cette période</span><span></span></div>') +
+    '</div>';
+    html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Références Mobile Money reçues</h3>' +
+      (mmEntries.length ? mmEntries.map(function(e){ return '<div class="day-row"><span>'+isoToDisplay(e.date)+' — '+e.client+' <span style="color:var(--muted);">(réf. '+e.ref+')</span></span><span>'+fmtAr(e.amount)+'</span></div>'; }).join('') : '<div class="day-row"><span>Aucun Mobile Money reçu sur cette période</span><span></span></div>') +
+    '</div>';
     html += '<div class="day-detail" style="margin-bottom:20px;"><h3>Dépenses par catégorie</h3>' +
       Object.keys(EXPENSE_CATEGORY_LABEL).map(function(k){ return '<div class="day-row"><span>'+EXPENSE_CATEGORY_LABEL[k]+'</span><span>'+fmtAr(depByCat[k]||0)+'</span></div>'; }).join('') +
     '</div>';
@@ -1750,7 +1782,8 @@ h2{font-size:38px}
     window._lastRecapData = {
       range: range, periodReservations: periodReservations, caPrevu: caPrevu, totalRecu: totalRecu,
       resteARecevoir: resteARecevoir, totalDepenses: totalDepenses, beneficeReel: beneficeReel,
-      entreeCash: entreeCash, sortieCash: sortieCash, entreeMM: entreeMM, sortieMM: sortieMM, vehCounts: vehCounts
+      entreeCash: entreeCash, sortieCash: sortieCash, entreeMM: entreeMM, sortieMM: sortieMM, vehCounts: vehCounts,
+      cashByDriver: cashByDriver, mmEntries: mmEntries
     };
   }
 
@@ -1795,11 +1828,23 @@ h2{font-size:38px}
       ['Solde espèces', fmtAr(soldeEspeces)]
     ]) + '</div>';
 
+    html += '<div class="section"><h2>Espèces reçues par chauffeur</h2>' + miniTable(
+      Object.keys(d.cashByDriver||{}).length
+        ? Object.keys(d.cashByDriver).map(function(k){ return [k, fmtAr(d.cashByDriver[k])]; })
+        : [['Aucune espèce reçue sur cette période', '']]
+    ) + '</div>';
+
     html += '<div class="section"><h2>Trésorerie — Mobile Money</h2>' + miniTable([
       ['Mobile money reçu', fmtAr(d.entreeMM)],
       ['Mobile money dépensé', fmtAr(d.sortieMM)],
       ['Solde mobile money', fmtAr(soldeMM)]
     ]) + '</div>';
+
+    html += '<div class="section"><h2>Références Mobile Money reçues</h2>' + miniTable(
+      (d.mmEntries||[]).length
+        ? d.mmEntries.map(function(e){ return [isoToDisplay(e.date)+' — '+e.client+' (réf. '+e.ref+')', fmtAr(e.amount)]; })
+        : [['Aucun Mobile Money reçu sur cette période', '']]
+    ) + '</div>';
 
     html += '<div class="section"><h2>Flotte & chauffeurs</h2>' + miniTable([
       ['Véhicules disponibles', String(d.vehCounts.disponible||0)],
@@ -1968,6 +2013,7 @@ h2{font-size:38px}
     document.getElementById("add-form").reset();
     document.getElementById("a-date").value = todayISO();
     document.getElementById("add-error").style.display = "none";
+    document.getElementById("a-mm-ref-field").style.display = "none";
     fillVehicleSelect(document.getElementById('a-vehicle'), '');
     setServiceType('course');
     addAmountPaidTouched = false;
@@ -1975,6 +2021,10 @@ h2{font-size:38px}
     document.getElementById("add-modal").classList.add("show");
   };
   window.closeAddModal = function(){ document.getElementById("add-modal").classList.remove("show"); };
+
+  document.getElementById('a-payment').addEventListener('change', function(){
+    document.getElementById('a-mm-ref-field').style.display = (this.value === 'mobile_money') ? 'block' : 'none';
+  });
 
   function recalcFare(){
     const tier = document.getElementById("a-tier").value;
@@ -2057,6 +2107,7 @@ h2{font-size:38px}
         whenMode: "manual",
         assignedVehicleId: document.getElementById('a-vehicle').value || null,
         paymentMethod: document.getElementById('a-payment').value || null,
+        mobileMoneyRef: (document.getElementById('a-payment').value === 'mobile_money') ? document.getElementById('a-mm-ref').value.trim() : '',
         paymentStatus: document.getElementById('a-payment-status').value,
         amountPaid: parseFloat(document.getElementById('a-amount-paid').value) || 0,
         notes: document.getElementById('a-notes').value.trim(),
@@ -2115,6 +2166,7 @@ h2{font-size:38px}
           source: v.source || "site", status: v.status||"new",
           assignedVehicleId: v.assignedVehicleId || null,
           paymentMethod: v.paymentMethod || null,
+          mobileMoneyRef: v.mobileMoneyRef || '',
           paymentStatus: v.paymentStatus || null,
           amountPaid: (v.amountPaid !== undefined && v.amountPaid !== null) ? v.amountPaid : null,
           notes: v.notes || "",
