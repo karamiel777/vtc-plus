@@ -45,6 +45,7 @@
   .services-grid{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:32px; max-width:1100px; margin:0 auto;}
   .steps-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:48px; max-width:960px; margin:0 auto;}
   .contact-grid{display:grid; grid-template-columns:1.2fr 1fr; gap:64px;}
+  .route-map-box{height:420px;}
   @media (max-width: 860px){
     .fleet-grid, .services-grid, .steps-grid, .contact-grid{grid-template-columns:1fr;}
     header{padding:0 20px !important;}
@@ -52,6 +53,7 @@
     .hamburger-btn{display:flex !important;}
     section{padding-left:24px !important; padding-right:24px !important;}
     h1{font-size:42px !important;}
+    .route-map-box{height:320px;}
   }
   .hamburger-btn{display:none; width:40px; height:40px; align-items:center; justify-content:center; background:transparent; border:1px solid var(--border); border-radius:4px; cursor:pointer; flex-shrink:0;}
   .hamburger-btn span{display:block; width:18px; height:1.5px; background:var(--text); position:relative;}
@@ -147,7 +149,7 @@
 
     <button type="button" onclick="calculateRoute()" class="btn btn-outline" data-i18n="res.calcRoute" style="justify-content:center;" id="route-btn">Calculer l'itinéraire</button>
     <div id="route-status" style="font-size:13px; color:var(--muted); display:none;"></div>
-    <div id="route-map" style="width:100%; height:280px; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
+    <div id="route-map" class="route-map-box" style="width:100%; border-radius:2px; overflow:hidden; border:1px solid var(--border);"></div>
     <div id="map-hint" style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:-8px;"></div>
     <div id="route-result" style="display:none; padding:14px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:2px; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--text);">
       <span id="route-distance"></span>
@@ -630,6 +632,7 @@
               if (typeof updateMapHint === 'function') updateMapHint();
               box.classList.remove('show');
               box.innerHTML = '';
+              if (selectedCoords.pickup && selectedCoords.dest) calculateRoute();
             });
             box.appendChild(item);
           });
@@ -647,7 +650,24 @@
   setupAutocomplete('f-dest');
 
   // Route calculation (OpenStreetMap Nominatim + OSRM — free, no API key)
-  var routeMap = null, routeLine = null, markerA = null, markerB = null;
+  var routeMap = null, routeLine = null, markerA = null, markerB = null, userMarker = null;
+
+  function geolocateUser(){
+    if (!navigator.geolocation || !routeMap) return;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      routeMap.setView([lat, lon], 14);
+      var hereIcon = L.divIcon({
+        className: '',
+        html: '<div style="width:16px; height:16px; border-radius:50%; background:#3b82f6; border:3px solid #fff; box-shadow:0 0 0 5px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.4);"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+      if (userMarker) routeMap.removeLayer(userMarker);
+      userMarker = L.marker([lat, lon], { icon: hereIcon, zIndexOffset: -100 }).addTo(routeMap);
+    }, function(){ /* refusé ou indisponible — on garde la vue par défaut sur Antananarivo */ },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+  }
 
   function coloredPin(color){
     return L.divIcon({
@@ -710,6 +730,7 @@
     }).addTo(routeMap);
     routeMap.on('click', onMapClick);
     updateMapHint();
+    geolocateUser();
     setTimeout(function(){ routeMap.invalidateSize(); }, 150);
   }
 
