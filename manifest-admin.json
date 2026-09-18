@@ -1,0 +1,16 @@
+{
+  "name": "VTC PLUS — Administration",
+  "short_name": "VTC Admin",
+  "description": "Tableau de bord de gestion VTC PLUS (réservations, flotte, finances).",
+  "start_url": "./admin.html",
+  "scope": "./admin.html",
+  "display": "standalone",
+  "background_color": "#0B0B0C",
+  "theme_color": "#0B0B0C",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    { "src": "favicon-512-admin.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "favicon-512-admin.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

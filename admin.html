@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VTC PLUS — Administration</title>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="512x512" href="favicon-512-admin.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-admin.png">
+<link rel="manifest" href="manifest-admin.json">
+<meta name="theme-color" content="#0B0B0C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VTC Admin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -35,7 +42,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--gold)}
 .error{display:none;background:rgba(217,87,87,.12);border:1px solid var(--red);color:#f2a2a2;padding:11px 13px;border-radius:3px;font-size:13px;margin-bottom:16px}
 .demo-note{margin-top:20px;color:var(--muted);font-size:11.5px;line-height:1.5}
 #dashboard{display:none}
-header{height:78px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 38px;position:sticky;top:0;background:rgba(11,11,12,.96);backdrop-filter:blur(8px);z-index:10}
+header{height:78px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 38px;background:rgba(11,11,12,.96);backdrop-filter:blur(8px)}
 .header-left{display:flex;align-items:center;gap:18px}.header-left img{height:40px}
 .admin-label{font-size:12px;color:var(--muted);border-left:1px solid var(--border);padding-left:18px;display:flex;align-items:center;gap:8px}
 .role-pill{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;background:rgba(201,164,92,.15);color:var(--gold2);letter-spacing:.03em}
@@ -149,13 +156,26 @@ h2{font-size:38px}
 </section>
 
 <section id="dashboard">
+<div id="admin-sticky-top-wrap" style="position:sticky; top:0; z-index:100;">
+
+  <div id="install-banner" style="display:none; position:relative; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; padding:9px 44px; background:var(--gold); color:#141112; font-size:12.5px; font-weight:600; text-align:center; font-family:'Manrope',sans-serif;">
+    <span>📲 Installez l'admin VTC PLUS sur votre écran d'accueil pour un accès plus rapide</span>
+    <button type="button" onclick="installApp()" style="background:#141112; color:var(--gold2); border:none; padding:6px 14px; border-radius:2px; font-weight:700; cursor:pointer; font-size:12px; font-family:'Manrope',sans-serif;">📲 Installer</button>
+    <button type="button" onclick="dismissInstallBanner()" aria-label="Fermer" style="background:transparent; border:none; color:#141112; font-size:19px; cursor:pointer; line-height:1; padding:0 6px; position:absolute; right:12px; top:50%; transform:translateY(-50%);">×</button>
+  </div>
+
 <header>
   <div class="header-left">
     <img src="logo.jpg" alt="VTC PLUS">
     <span class="admin-label">ADMINISTRATION <span id="role-pill" class="role-pill">Gérante</span></span>
   </div>
-  <button class="logout" onclick="logout()">Déconnexion</button>
+  <div style="display:flex; align-items:center; gap:14px;">
+    <button type="button" id="install-app-btn" onclick="installApp()" style="display:none; padding:9px 16px; font-size:12.5px; border-radius:2px; background:transparent; border:1px solid var(--gold); color:var(--gold2); cursor:pointer; font-family:'Manrope',sans-serif; font-weight:600;">📲 Installer l'app</button>
+    <button class="logout" onclick="logout()">Déconnexion</button>
+  </div>
 </header>
+
+</div>
 
 <main>
   <div id="new-alert" class="alert">
@@ -2211,5 +2231,95 @@ h2{font-size:38px}
     }
   });
 </script>
+
+<script>
+  // ---------- PWA : installation "à la app" (portée sur admin.html uniquement) ----------
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('service-worker-admin.js', { scope: './admin.html' })
+        .catch(function(){ /* pas grave si indisponible */ });
+    });
+  }
+
+  var deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredInstallPrompt = e;
+  });
+
+  window.installApp = function(){
+    if (deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function(){ deferredInstallPrompt = null; });
+      return;
+    }
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIOS){
+      var modal = document.getElementById('ios-install-modal');
+      if (modal) modal.style.display = 'flex';
+    } else {
+      alert("Cherchez l'icône d'installation dans la barre d'adresse de votre navigateur, ou ouvrez le menu (⋮) et choisissez \"Installer VTC Admin\".");
+    }
+  };
+
+  window.closeIosInstallModal = function(){
+    var modal = document.getElementById('ios-install-modal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  function refreshInstallButtons(){
+    var isStandalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    var btn = document.getElementById('install-app-btn');
+    if (btn) btn.style.display = isStandalone ? 'none' : 'inline-block';
+
+    var banner = document.getElementById('install-banner');
+    var dismissed = false;
+    try{ dismissed = localStorage.getItem('vtcplus_admin_install_banner_dismissed') === '1'; }catch(e){}
+    if (banner) banner.style.display = (isStandalone || dismissed) ? 'none' : 'flex';
+  }
+
+  window.dismissInstallBanner = function(){
+    var banner = document.getElementById('install-banner');
+    if (banner) banner.style.display = 'none';
+    try{ localStorage.setItem('vtcplus_admin_install_banner_dismissed', '1'); }catch(e){}
+  };
+
+  window.addEventListener('appinstalled', refreshInstallButtons);
+  refreshInstallButtons();
+</script>
+
+<div id="ios-install-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:3000; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:30px 26px; max-width:380px; width:100%;">
+    <h3 style="font-family:'Cormorant Garamond', serif; font-size:24px; color:var(--gold2); margin:0 0 22px; text-align:center;">Installer sur iPhone</h3>
+
+    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:20px;">
+      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">1</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="22" height="26" viewBox="0 0 24 28" fill="none" style="flex-shrink:0;"><path d="M12 1v16M6 7L12 1L18 7" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="12" width="20" height="14" rx="2" stroke="#C9A45C" stroke-width="2"/></svg>
+        <span style="font-size:14px; color:var(--text); line-height:1.5;">Appuyez sur l'icône <strong>Partager</strong> en bas de Safari</span>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:20px;">
+      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">2</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#C9A45C" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="font-size:14px; color:var(--text); line-height:1.5;">Faites défiler et choisissez <strong>"Sur l'écran d'accueil"</strong></span>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:26px;">
+      <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); color:#141112; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">3</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;"><path d="M5 12l5 5L19 7" stroke="#C9A45C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size:14px; color:var(--text); line-height:1.5;">Confirmez en appuyant sur <strong>"Ajouter"</strong> en haut à droite</span>
+      </div>
+    </div>
+
+    <button type="button" onclick="closeIosInstallModal()" class="btn btn-gold" style="width:100%; justify-content:center;">Compris</button>
+  </div>
+</div>
 </body>
 </html>
