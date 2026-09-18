@@ -588,6 +588,10 @@
     applyTranslations();
     if (typeof updateTierPreview === 'function' && typeof selectedTier !== 'undefined') updateTierPreview(selectedTier);
     if (typeof updateMapHint === 'function') updateMapHint();
+    if (typeof iosTutoRender === 'function'){
+      var iosModal = document.getElementById('ios-install-modal');
+      if (iosModal && iosModal.style.display === 'flex') iosTutoRender();
+    }
   }
 
   (function initLang(){
@@ -1170,7 +1174,8 @@
 
   function iosTutoRender(){
     var img = document.getElementById('ios-tuto-img');
-    if (img) img.src = 'ios-install-' + iosTutoIndex + '.jpg';
+    var prefix = (currentLang === 'en') ? 'ios-install-en-' : 'ios-install-';
+    if (img) img.src = prefix + iosTutoIndex + '.jpg';
     var prev = document.getElementById('ios-tuto-prev');
     var next = document.getElementById('ios-tuto-next');
     if (prev) prev.style.visibility = (iosTutoIndex === 1) ? 'hidden' : 'visible';
