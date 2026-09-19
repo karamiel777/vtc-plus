@@ -82,6 +82,12 @@
     <button type="button" onclick="dismissInstallBanner()" aria-label="Fermer" style="background:transparent; border:none; color:#141112; font-size:20px; cursor:pointer; line-height:1; padding:0 6px; position:absolute; right:12px; top:50%; transform:translateY(-50%);">×</button>
   </div>
 
+  <div id="push-banner" style="display:none; position:relative; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; padding:10px 44px; background:var(--surface-2); border-bottom:1px solid var(--gold); color:var(--text); font-size:13px; font-weight:600; text-align:center; font-family:'Manrope',sans-serif;">
+    <span data-i18n="nav.pushBannerText">🔔 Activez les notifications pour être prévenu(e) dès que votre course est confirmée</span>
+    <button type="button" onclick="enableClientNotifications()" data-i18n="nav.pushEnable" style="background:var(--gold); color:#141112; border:none; padding:7px 16px; border-radius:2px; font-weight:700; cursor:pointer; font-size:12.5px; font-family:'Manrope',sans-serif;">🔔 Activer</button>
+    <button type="button" onclick="dismissPushBanner()" aria-label="Fermer" style="background:transparent; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:0 6px; position:absolute; right:12px; top:50%; transform:translateY(-50%);">×</button>
+  </div>
+
 <header style="display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
   <img src="logo.jpg" alt="VTC PLUS" style="height:52px; width:auto;">
   <nav class="desktop-nav" style="display:flex; align-items:center; gap:32px;">
@@ -402,31 +408,66 @@
 
   // Clé VAPID Web Push — la même que celle déjà collée dans admin.html
   // (Firebase Console → Paramètres du projet → Cloud Messaging → Web Push certificates).
-  var PUSH_VAPID_KEY = "COLLER_ICI_LA_CLE_VAPID";
+  var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5YUs8A8zh1NrHB5eoIlZjG51eFITeg";
   var lastReservationId = null;
 
-  // Jeton de notification du client, obtenu dès le chargement de la page
-  // (exactement comme la géolocalisation : on demande la permission tout
-  // de suite, en silence, sans bouton — s'il est accepté, le jeton est
-  // envoyé avec la réservation dès qu'elle est créée, plus besoin d'un
-  // encart après coup qui risquait de disparaître avec le formulaire).
+  // Jeton de notification du client. On tente d'abord silencieusement au
+  // chargement de la page (comme la géolocalisation) — ça marche sur
+  // Android/Chrome. MAIS iPhone (Safari/PWA) refuse d'afficher la fenêtre
+  // de permission si elle n'est pas déclenchée par un vrai tap du client :
+  // sur iOS, l'appel silencieux ne fait donc rien du tout (pas de fenêtre,
+  // pas d'erreur). C'est pour ça qu'un bandeau "Activer les notifications"
+  // reste affiché tant que la permission n'a pas été obtenue — un tap
+  // dessus déclenche la même demande, mais avec le geste requis par iOS.
   var pendingPushToken = null;
 
-  async function initClientPush(){
-    try{
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-      if (Notification.permission === 'denied') return;
-      var perm = await Notification.requestPermission();
-      if (perm !== 'granted') return;
-      var swReg = await navigator.serviceWorker.ready;
-      var messagingModule = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
-      if (messagingModule.isSupported && !(await messagingModule.isSupported())) return;
-      var messaging = messagingModule.getMessaging(app);
-      var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
-      if (token) pendingPushToken = token;
-    }catch(e){ /* refusé ou indisponible — on garde le formulaire utilisable sans, sans déranger */ }
+  async function requestClientPush(){
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
+    if (Notification.permission === 'denied') return null;
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') return null;
+    var swReg = await navigator.serviceWorker.ready;
+    var messagingModule = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
+    if (messagingModule.isSupported && !(await messagingModule.isSupported())) return null;
+    var messaging = messagingModule.getMessaging(app);
+    var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
+    return token || null;
   }
-  initClientPush();
+
+  function refreshPushBanner(){
+    var banner = document.getElementById('push-banner');
+    if (!banner) return;
+    var dismissed = false;
+    try{ dismissed = localStorage.getItem('vtcplus_push_banner_dismissed') === '1'; }catch(e){}
+    var supported = ('Notification' in window) && ('serviceWorker' in navigator);
+    var stillNeeded = supported && Notification.permission === 'default' && !pendingPushToken;
+    banner.style.display = (stillNeeded && !dismissed) ? 'flex' : 'none';
+  }
+
+  window.dismissPushBanner = function(){
+    var banner = document.getElementById('push-banner');
+    if (banner) banner.style.display = 'none';
+    try{ localStorage.setItem('vtcplus_push_banner_dismissed', '1'); }catch(e){}
+  };
+
+  // Appelé au tap sur le bouton du bandeau — c'est un vrai geste utilisateur,
+  // donc ça fonctionne aussi sur iPhone, contrairement à la tentative
+  // silencieuse au chargement.
+  window.enableClientNotifications = async function(){
+    try{
+      var token = await requestClientPush();
+      if (token) pendingPushToken = token;
+    }catch(e){ /* refusé ou indisponible */ }
+    refreshPushBanner();
+  };
+
+  (async function initClientPush(){
+    try{
+      var token = await requestClientPush();
+      if (token) pendingPushToken = token;
+    }catch(e){ /* refusé, indisponible, ou bloqué par iOS sans geste — pas grave */ }
+    refreshPushBanner();
+  })();
 
   window.submitReservation = async function(event) {
     if (event) event.preventDefault();
@@ -487,9 +528,9 @@
     'nav.fleet':'Fleet', 'nav.pricing':'Pricing', 'nav.services':'Services', 'nav.how':'How it works',
     'nav.contact':'Contact', 'nav.book':'Book now', 'nav.installApp':'📲 Install app',
     'nav.installBannerText':'📲 Install VTC PLUS on your home screen for faster access',
+    'nav.pushBannerText':"🔔 Enable notifications to be notified as soon as your ride is confirmed",
+    'nav.pushEnable':'🔔 Enable',
     'ios.prev':'Previous',
-    'postbooking.title':'Request sent ✓',
-    'postbooking.text':'Install the VTC PLUS app on your home screen to track your ride and get notified instantly next time.',
     'postbooking.install':'📲 Install the app',
     'postbooking.later':'No thanks',
     'hero.title':'Travel like a VIP in Antananarivo.',
@@ -627,6 +668,10 @@
     if (typeof iosTutoRender === 'function'){
       var iosModal = document.getElementById('ios-install-modal');
       if (iosModal && iosModal.style.display === 'flex') iosTutoRender();
+    }
+    if (typeof updatePostBookingImg === 'function'){
+      var pbModal = document.getElementById('post-booking-install-modal');
+      if (pbModal && pbModal.style.display === 'flex') updatePostBookingImg();
     }
   }
 
@@ -1297,10 +1342,17 @@
   }
 
   // Popup proposant l'installation de l'app, affiché après chaque course
-  // envoyée (site déjà bilingue via data-i18n — pas besoin de deux popups
-  // séparés). Ne s'affiche pas si l'app est déjà installée.
+  // envoyée. L'affiche est en français ou en anglais selon la langue
+  // choisie sur le site (pas besoin de deux popups séparés à gérer).
+  // Ne s'affiche pas si l'app est déjà installée.
+  function updatePostBookingImg(){
+    var img = document.getElementById('post-booking-img');
+    if (img) img.src = (currentLang === 'en') ? 'app-promo-en.jpg' : 'app-promo-fr.jpg';
+  }
+
   window.showPostBookingInstall = function(){
     if (isAppStandalone()) return;
+    updatePostBookingImg();
     var modal = document.getElementById('post-booking-install-modal');
     if (modal) modal.style.display = 'flex';
   };
@@ -1354,12 +1406,10 @@
 </div>
 
 <div id="post-booking-install-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:3000; align-items:center; justify-content:center; padding:16px;">
-  <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; max-width:360px; width:100%; overflow:hidden; position:relative; padding:30px 28px 26px; text-align:center;">
-    <button type="button" onclick="closePostBookingInstall()" aria-label="Fermer" style="position:absolute; top:10px; right:10px; z-index:2; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,0.06); border:none; color:var(--muted); font-size:15px; line-height:1; cursor:pointer;">✕</button>
-    <div style="font-size:34px; margin-bottom:6px;">📲</div>
-    <div data-i18n="postbooking.title" style="font-weight:700; font-size:18px; color:var(--text); margin-bottom:10px;">Demande envoyée ✓</div>
-    <p data-i18n="postbooking.text" style="color:var(--muted); font-size:14px; line-height:1.6; margin:0 0 20px;">Installez l'application VTC PLUS sur votre écran d'accueil pour suivre votre course et être notifié(e) instantanément la prochaine fois.</p>
-    <div style="display:flex; flex-direction:column; gap:10px;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; max-width:360px; width:100%; max-height:92vh; overflow-y:auto; position:relative;">
+    <button type="button" onclick="closePostBookingInstall()" aria-label="Fermer" style="position:absolute; top:10px; right:10px; z-index:2; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,0.55); border:none; color:#fff; font-size:15px; line-height:1; cursor:pointer;">✕</button>
+    <img id="post-booking-img" src="app-promo-fr.jpg" alt="Téléchargez l'application VTC PLUS" style="display:block; width:100%; height:auto;">
+    <div style="display:flex; flex-direction:column; gap:10px; padding:18px 22px 22px;">
       <button type="button" class="btn btn-gold" data-i18n="postbooking.install" onclick="installAppFromPostBooking()" style="justify-content:center; padding:11px 16px; font-size:13.5px;">📲 Installer l'app</button>
       <button type="button" class="btn btn-dark" data-i18n="postbooking.later" onclick="closePostBookingInstall()" style="justify-content:center; padding:11px 16px; font-size:13.5px;">Non merci</button>
     </div>
