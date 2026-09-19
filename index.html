@@ -417,7 +417,7 @@
 
 <script type="module">
   import { app, db } from "./firebase-config.js";
-  import { addDoc, collection, serverTimestamp, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+  import { addDoc, collection, serverTimestamp, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
   // Clé VAPID Web Push — la même que celle déjà collée dans admin.html
   // (Firebase Console → Paramètres du projet → Cloud Messaging → Web Push certificates).
@@ -463,13 +463,26 @@
     try{ localStorage.setItem('vtcplus_push_banner_dismissed', '1'); }catch(e){}
   };
 
+  // Si le jeton arrive APRÈS qu'une réservation a déjà été envoyée (courant
+  // sur iPhone, où l'obtention du jeton prend quelques secondes), on le
+  // rattache quand même à cette réservation au lieu de le perdre.
+  async function applyClientPushToken(token){
+    if (!token) return;
+    pendingPushToken = token;
+    if (lastReservationId){
+      try{
+        await updateDoc(doc(db, 'reservations', lastReservationId), { clientPushToken: token });
+      }catch(e){ console.error('Impossible de rattacher le jeton à la réservation existante :', e); }
+    }
+  }
+
   // Appelé au tap sur le bouton du bandeau — c'est un vrai geste utilisateur,
   // donc ça fonctionne aussi sur iPhone, contrairement à la tentative
   // silencieuse au chargement.
   window.enableClientNotifications = async function(){
     try{
       var token = await requestClientPush();
-      if (token) pendingPushToken = token;
+      await applyClientPushToken(token);
     }catch(e){ /* refusé ou indisponible */ }
     refreshPushBanner();
   };
@@ -477,7 +490,7 @@
   (async function initClientPush(){
     try{
       var token = await requestClientPush();
-      if (token) pendingPushToken = token;
+      await applyClientPushToken(token);
     }catch(e){ /* refusé, indisponible, ou bloqué par iOS sans geste — pas grave */ }
     refreshPushBanner();
   })();
@@ -514,22 +527,155 @@
     }
   }
 
+  // Lien vers la fiche d'avis Google — à remplacer une fois la fiche créée
+  // (Google Business Profile → "Obtenir plus d'avis" → copier le lien).
+  var GOOGLE_REVIEW_LINK = "COLLER_ICI_LE_LIEN_AVIS_GOOGLE";
+  var selectedRating = 0;
+
+  function renderStars(n){
+    selectedRating = n;
+    var box = document.getElementById('rating-stars');
+    if (!box) return;
+    var html = '';
+    for (var i = 1; i <= 5; i++){
+      html += '<span onclick="setRatingStars(' + i + ')" style="cursor:pointer; color:' + (i <= n ? 'var(--gold-bright)' : 'var(--border)') + ';">★</span>';
+    }
+    box.innerHTML = html;
+  }
+  window.setRatingStars = function(n){ renderStars(n); };
+
+  async function submitRating(id){
+    if (!selectedRating){
+      alert(currentLang === 'en' ? 'Please select a star rating.' : 'Merci de choisir une note en étoiles.');
+      return;
+    }
+    var commentEl = document.getElementById('rating-comment');
+    var comment = commentEl ? commentEl.value.trim() : '';
+    var btn = document.getElementById('rating-submit');
+    if (btn){ btn.disabled = true; btn.textContent = currentLang === 'en' ? 'Sending…' : 'Envoi…'; }
+    try{
+      await updateDoc(doc(db, 'reservations', id), {
+        rating: selectedRating,
+        ratingComment: comment,
+        ratedAt: serverTimestamp()
+      });
+    }catch(e){
+      console.error(e);
+      if (btn){ btn.disabled = false; btn.textContent = currentLang === 'en' ? 'Send' : 'Envoyer'; }
+      alert(currentLang === 'en' ? 'Could not send your rating, please try again.' : "Impossible d'envoyer votre note, réessaie.");
+    }
+  }
+
+  // ---------- Partage en direct de la position du client avec le chauffeur
+  // (utile pendant l'attente ; s'arrête automatiquement quand la course est
+  // terminée ou annulée). Volontairement à sens unique pour l'instant : côté
+  // chauffeur, l'écran est souvent éteint en conduisant, ce qui rendrait un
+  // partage inverse peu fiable via le navigateur. ----
+  var clientLocationWatchId = null;
+  var clientLocationSharingId = null;
+  var lastClientLocationWriteAt = 0;
+
+  function isClientLocationSharing(id){
+    return clientLocationWatchId !== null && clientLocationSharingId === id;
+  }
+
+  function stopClientLocationSharing(clearField){
+    if (clientLocationWatchId !== null){
+      try{ navigator.geolocation.clearWatch(clientLocationWatchId); }catch(e){}
+      var idToClear = clientLocationSharingId;
+      clientLocationWatchId = null;
+      clientLocationSharingId = null;
+      if (clearField && idToClear){
+        updateDoc(doc(db, 'reservations', idToClear), { clientLocation: null }).catch(function(){});
+      }
+    }
+  }
+
+  function startClientLocationSharing(id){
+    if (!navigator.geolocation){
+      alert(currentLang === 'en' ? 'Location sharing is not supported on this device.' : "Le partage de position n'est pas pris en charge sur cet appareil.");
+      return;
+    }
+    stopClientLocationSharing(false);
+    clientLocationSharingId = id;
+    clientLocationWatchId = navigator.geolocation.watchPosition(function(pos){
+      var now = Date.now();
+      if (now - lastClientLocationWriteAt < 12000) return; // throttle : ménage batterie et quota Firestore
+      lastClientLocationWriteAt = now;
+      updateDoc(doc(db, 'reservations', id), {
+        clientLocation: { lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAt: serverTimestamp() }
+      }).catch(function(e){ console.error('Impossible de mettre à jour la position :', e); });
+    }, function(err){
+      console.error('Géolocalisation refusée ou indisponible :', err);
+      stopClientLocationSharing(false);
+      if (lastRideData) renderRideStatus(id, lastRideData);
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 });
+  }
+
+  window.toggleClientLocationSharing = function(id){
+    if (isClientLocationSharing(id)) stopClientLocationSharing(true);
+    else startClientLocationSharing(id);
+    if (lastRideData) renderRideStatus(id, lastRideData);
+  };
+
   function renderRideStatus(id, r){
     lastRideData = r;
     if (!r){ applyRideVisibility(); return; }
     document.getElementById('ride-status-route').textContent = (r.pickup||'') + ' → ' + (r.destination||'');
-    var lines = [];
-    lines.push('<strong>' + rideStatusLabel(r.status) + '</strong>');
-    if (r.status === 'cancelled'){
-      if (r.cancelReason) lines.push((currentLang === 'en' ? 'Reason: ' : 'Motif : ') + r.cancelReason);
-    } else if (r.status === 'confirmed'){
-      if (r.vehicleLabel) lines.push('🚗 ' + r.vehicleLabel);
-      if (r.driverName) lines.push('👤 ' + r.driverName + (r.driverPhone ? ' — <a href="tel:' + r.driverPhone.replace(/\s/g,'') + '" style="color:var(--gold-bright);">' + r.driverPhone + '</a>' : ''));
-      if (r.driverEta) lines.push('🕒 ' + (currentLang === 'en' ? 'Estimated arrival: ' : 'Arrivée prévue : ') + r.driverEta);
-    }
-    document.getElementById('ride-status-line').innerHTML = lines.join('<br>');
+    var lineEl = document.getElementById('ride-status-line');
     var miniText = document.getElementById('ride-status-mini-text');
-    if (miniText) miniText.textContent = (currentLang === 'en' ? '🚗 View your ride status' : '🚗 Voir le suivi de ma course') + ' — ' + rideStatusLabel(r.status);
+
+    if (r.status === 'cancelled'){
+      if (isClientLocationSharing(id)) stopClientLocationSharing(true);
+      var linesC = ['<strong>' + rideStatusLabel('cancelled') + '</strong>'];
+      if (r.cancelReason) linesC.push((currentLang === 'en' ? 'Reason: ' : 'Motif : ') + r.cancelReason);
+      lineEl.innerHTML = linesC.join('<br>');
+      if (miniText) miniText.textContent = (currentLang === 'en' ? '🚗 View your ride status' : '🚗 Voir le suivi de ma course') + ' — ' + rideStatusLabel('cancelled');
+
+    } else if (r.driverProgress === 'completed'){
+      if (isClientLocationSharing(id)) stopClientLocationSharing(true);
+      // Course terminée par le chauffeur : on demande la note au client
+      // (une seule fois — si déjà noté, on affiche juste un merci + le
+      // lien Google pour les bonnes notes).
+      if (miniText) miniText.textContent = currentLang === 'en' ? '🏁 Ride completed — rate it' : '🏁 Course terminée — donnez votre avis';
+      if (r.rating){
+        var thanks = ['<strong>' + (currentLang === 'en' ? '🏁 Ride completed' : '🏁 Course terminée') + '</strong>'];
+        thanks.push(currentLang === 'en' ? 'Thanks for your rating!' : 'Merci pour votre note !');
+        if (r.rating >= 4 && GOOGLE_REVIEW_LINK.indexOf('COLLER_ICI') !== 0){
+          thanks.push('<a href="' + GOOGLE_REVIEW_LINK + '" target="_blank" rel="noopener" style="color:var(--gold-bright);">' + (currentLang === 'en' ? '⭐ Leave us a Google review' : '⭐ Laisser un avis sur Google') + '</a>');
+        }
+        lineEl.innerHTML = thanks.join('<br>');
+      } else if (!document.getElementById('rating-form')){
+        lineEl.innerHTML =
+          '<div id="rating-form">' +
+          '<strong>' + (currentLang === 'en' ? '🏁 Ride completed' : '🏁 Course terminée') + '</strong><br>' +
+          (currentLang === 'en' ? 'How was your ride?' : "Comment s'est passée votre course ?") +
+          '<div id="rating-stars" style="margin:10px 0; font-size:26px; letter-spacing:6px;"></div>' +
+          '<textarea id="rating-comment" placeholder="' + (currentLang === 'en' ? 'Add a comment (optional)' : 'Un commentaire (facultatif)') + '" style="width:100%; box-sizing:border-box; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:2px; color:var(--text); font-family:inherit; font-size:13px; margin:8px 0; resize:vertical;" rows="2"></textarea>' +
+          '<button type="button" class="btn btn-gold" id="rating-submit" style="width:100%; justify-content:center; padding:10px;">' + (currentLang === 'en' ? 'Send' : 'Envoyer') + '</button>' +
+          '</div>';
+        renderStars(0);
+        document.getElementById('rating-submit').onclick = function(){ submitRating(id); };
+      }
+
+    } else {
+      var isEnRoute = r.status === 'confirmed' && r.driverProgress === 'en_route';
+      var lines = [];
+      lines.push('<strong>' + (isEnRoute ? (currentLang === 'en' ? '🚗 Driver on the way' : '🚗 Chauffeur en route') : rideStatusLabel(r.status)) + '</strong>');
+      if (r.status === 'confirmed'){
+        if (r.vehicleLabel) lines.push('🚗 ' + r.vehicleLabel);
+        if (r.driverName) lines.push('👤 ' + r.driverName + (r.driverPhone ? ' — <a href="tel:' + r.driverPhone.replace(/\s/g,'') + '" style="color:var(--gold-bright);">' + r.driverPhone + '</a>' : ''));
+        if (r.driverEta) lines.push('🕒 ' + (currentLang === 'en' ? 'Estimated arrival: ' : 'Arrivée prévue : ') + r.driverEta);
+      }
+      var sharingNow = isClientLocationSharing(id);
+      lines.push('<div style="margin-top:12px;"><button type="button" id="client-location-toggle" style="background:' + (sharingNow ? 'rgba(101,184,137,.15)' : 'var(--gold)') + '; color:' + (sharingNow ? '#8ed3aa' : '#141112') + '; border:none; padding:9px 14px; border-radius:2px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:inherit; width:100%;">' +
+        (sharingNow ? (currentLang === 'en' ? '🟢 Sharing my location — Stop' : '🟢 Position partagée — Arrêter') : (currentLang === 'en' ? '📍 Share my location with the driver' : '📍 Partager ma position avec le chauffeur')) +
+        '</button></div>');
+      lineEl.innerHTML = lines.join('<br>');
+      var locToggleBtn = document.getElementById('client-location-toggle');
+      if (locToggleBtn) locToggleBtn.onclick = function(){ toggleClientLocationSharing(id); };
+      if (miniText) miniText.textContent = (currentLang === 'en' ? '🚗 View your ride status' : '🚗 Voir le suivi de ma course') + ' — ' + (isEnRoute ? (currentLang === 'en' ? 'Driver on the way' : 'Chauffeur en route') : rideStatusLabel(r.status));
+    }
     applyRideVisibility();
   }
 
