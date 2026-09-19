@@ -632,6 +632,11 @@
   renderDots();
 
   // Address autocomplete (OpenStreetMap Nominatim — free, no API key)
+  function shortPlace(str){
+    if (!str) return str;
+    var parts = String(str).split(',');
+    return parts[0].trim();
+  }
   var selectedCoords = { pickup: null, dest: null };
   var debounceTimers = {};
   var TANA_VIEWBOX = "47.40,-18.75,47.62,-19.05"; // left,top,right,bottom around Antananarivo
@@ -703,10 +708,10 @@
             item.className = 'suggestion-item';
             item.textContent = r.display_name;
             item.addEventListener('click', function(){
-              input.value = r.display_name;
+              input.value = shortPlace(r.display_name);
               var key = fieldId === 'f-pickup' ? 'pickup' : 'dest';
               selectedCoords[key] = { lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
-              if (typeof placeMapPin === 'function' && routeMap) placeMapPin(key, parseFloat(r.lat), parseFloat(r.lon), r.display_name);
+              if (typeof placeMapPin === 'function' && routeMap) placeMapPin(key, parseFloat(r.lat), parseFloat(r.lon), shortPlace(r.display_name));
               if (typeof updateMapHint === 'function') updateMapHint();
               box.classList.remove('show');
               box.innerHTML = '';
@@ -811,9 +816,10 @@
     var input = document.getElementById(fieldId);
     input.value = t('js.mapLocating');
     reverseGeocode(lat, lon).then(function(label){
-      input.value = label;
+      var shortLabel = shortPlace(label);
+      input.value = shortLabel;
       selectedCoords[target] = { lat: lat, lon: lon };
-      placeMapPin(target, lat, lon, label);
+      placeMapPin(target, lat, lon, shortLabel);
       updateMapHint();
       if (selectedCoords.pickup && selectedCoords.dest) calculateRoute();
     });

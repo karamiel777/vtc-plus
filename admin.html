@@ -2140,6 +2140,12 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     box.style.display = "block";
   }
 
+  function shortPlace(str){
+    if (!str) return str;
+    var parts = String(str).split(',');
+    return parts[0].trim();
+  }
+
   window.exportMonthPDF = function(){
     const key = monthKey(currentMonth);
     const monthRides = requests.filter(r => r.date && r.date.startsWith(key)).sort((a,b)=>a.date.localeCompare(b.date));
@@ -2193,7 +2199,7 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
       startY: boxY + boxH + 12,
       head: [["Date","Client","Trajet","Formule","Source","Statut","Montant"]],
       body: monthRides.map(r => [
-        isoToDisplay(r.date), r.name, r.pickup + " → " + r.dest, r.tier,
+        isoToDisplay(r.date), r.name, shortPlace(r.pickup) + " -> " + shortPlace(r.dest), r.tier,
         SOURCE_LABEL[r.source]||"Site web", labelStatus(r.status), r.estimate
       ]),
       styles: { fontSize: 8.5, cellPadding: 4, textColor: [40,38,35], lineColor: [230,225,215], lineWidth: 0.1 },
