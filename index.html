@@ -135,6 +135,14 @@
 </section>
 
 <section id="reservation" style="padding:100px 56px; border-bottom:1px solid var(--border); background:var(--surface-2);">
+
+  <div id="ride-status-card" style="display:none; max-width:640px; margin:0 auto 32px; background:var(--surface); border:1px solid var(--gold); border-radius:4px; padding:24px 28px; position:relative;">
+    <button type="button" onclick="hideRideStatus()" aria-label="Fermer" style="position:absolute; top:10px; right:10px; background:transparent; border:none; color:var(--muted); font-size:18px; cursor:pointer; line-height:1; padding:4px;">✕</button>
+    <div id="ride-status-badge" data-i18n="ride.tracking" style="font-size:12px; font-weight:700; letter-spacing:.04em; color:var(--gold-bright); margin-bottom:8px;">SUIVI DE VOTRE COURSE</div>
+    <div id="ride-status-route" style="font-size:15px; font-weight:600; color:var(--text); margin-bottom:10px;"></div>
+    <div id="ride-status-line" style="font-size:14px; color:var(--text); line-height:1.9;"></div>
+  </div>
+
   <div style="max-width:640px; margin:0 auto 56px; text-align:center;">
     <h2 data-i18n="res.title" style="font-size:44px; color:var(--text);">Réserver un trajet</h2>
     <p data-i18n="res.subtitle" style="color:var(--muted); font-size:16px; margin-top:16px; line-height:1.7;">Remplissez ces quelques informations, votre demande part directement sur notre WhatsApp.</p>
@@ -404,7 +412,7 @@
 
 <script type="module">
   import { app, db } from "./firebase-config.js";
-  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+  import { addDoc, collection, serverTimestamp, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
   // Clé VAPID Web Push — la même que celle déjà collée dans admin.html
   // (Firebase Console → Paramètres du projet → Cloud Messaging → Web Push certificates).
@@ -469,6 +477,63 @@
     refreshPushBanner();
   })();
 
+  // ---------- Suivi en direct de la dernière course (statut, véhicule,
+  // chauffeur, heure d'arrivée) — c'est ce qui donne une vraie raison
+  // d'installer l'app plutôt que de rester sur WhatsApp. ----------
+  var rideStatusUnsub = null;
+
+  function rideStatusLabel(status){
+    if (status === 'confirmed') return currentLang === 'en' ? '✅ Confirmed' : '✅ Confirmée';
+    if (status === 'cancelled') return currentLang === 'en' ? '❌ Cancelled' : '❌ Annulée';
+    return currentLang === 'en' ? '🕓 Being processed' : '🕓 En cours de traitement';
+  }
+
+  function renderRideStatus(id, r){
+    var card = document.getElementById('ride-status-card');
+    if (!card) return;
+    if (!r){ card.style.display = 'none'; return; }
+    document.getElementById('ride-status-route').textContent = (r.pickup||'') + ' → ' + (r.destination||'');
+    var lines = [];
+    lines.push('<strong>' + rideStatusLabel(r.status) + '</strong>');
+    if (r.status === 'cancelled'){
+      if (r.cancelReason) lines.push((currentLang === 'en' ? 'Reason: ' : 'Motif : ') + r.cancelReason);
+    } else if (r.status === 'confirmed'){
+      if (r.vehicleLabel) lines.push('🚗 ' + r.vehicleLabel);
+      if (r.driverName) lines.push('👤 ' + r.driverName + (r.driverPhone ? ' — <a href="tel:' + r.driverPhone.replace(/\s/g,'') + '" style="color:var(--gold-bright);">' + r.driverPhone + '</a>' : ''));
+      if (r.driverEta) lines.push('🕒 ' + (currentLang === 'en' ? 'Estimated arrival: ' : 'Arrivée prévue : ') + r.driverEta);
+    }
+    document.getElementById('ride-status-line').innerHTML = lines.join('<br>');
+    card.style.display = 'block';
+  }
+
+  function startRideTracking(id){
+    if (!id) return;
+    if (rideStatusUnsub) { try{ rideStatusUnsub(); }catch(e){} }
+    rideStatusUnsub = onSnapshot(doc(db, 'reservations', id), function(snap){
+      if (!snap.exists()){ renderRideStatus(id, null); return; }
+      renderRideStatus(id, snap.data());
+    }, function(err){
+      // Pas grave si on n'a pas encore le droit de lire (règles Firestore
+      // pas encore mises à jour, ou course trop ancienne) — on masque juste.
+      console.error('Suivi de course indisponible :', err);
+      renderRideStatus(id, null);
+    });
+  }
+
+  window.hideRideStatus = function(){
+    if (rideStatusUnsub){ try{ rideStatusUnsub(); }catch(e){} rideStatusUnsub = null; }
+    try{ localStorage.removeItem('vtcplus_last_reservation'); }catch(e){}
+    var card = document.getElementById('ride-status-card');
+    if (card) card.style.display = 'none';
+  };
+
+  (function resumeRideTracking(){
+    try{
+      var savedId = localStorage.getItem('vtcplus_last_reservation');
+      if (savedId) startRideTracking(savedId);
+    }catch(e){}
+  })();
+
   window.submitReservation = async function(event) {
     if (event) event.preventDefault();
     var btn = document.getElementById("wa-submit");
@@ -510,6 +575,8 @@
       feedbackMsg(pendingPushToken ? (t('js.sent') + ' 🔔') : t('js.sent'), true);
       btn.textContent=t('js.sentBtn'); btn.style.opacity="1"; btn.dataset.reservationId=ref.id;
       lastReservationId = ref.id;
+      try{ localStorage.setItem('vtcplus_last_reservation', ref.id); }catch(e){}
+      startRideTracking(ref.id);
       setTimeout(function(){ try{ resetReservationForm(); }catch(e){} }, 3500);
       setTimeout(function(){ try{ if (typeof showPostBookingInstall === 'function') showPostBookingInstall(); }catch(e){} }, 1800);
     } catch(error) {
@@ -530,6 +597,7 @@
     'nav.installBannerText':'📲 Install VTC PLUS on your home screen for faster access',
     'nav.pushBannerText':"🔔 Enable notifications to be notified as soon as your ride is confirmed",
     'nav.pushEnable':'🔔 Enable',
+    'ride.tracking':'TRACK YOUR RIDE',
     'ios.prev':'Previous',
     'postbooking.install':'📲 Install the app',
     'postbooking.later':'No thanks',

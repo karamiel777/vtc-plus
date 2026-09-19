@@ -76,6 +76,7 @@ h2{font-size:38px}
 .status.new{background:rgba(217,87,87,.14);color:#ef9999}
 .status.pending{background:rgba(217,154,69,.14);color:#e5b36d}
 .status.confirmed{background:rgba(101,184,137,.14);color:#8ed3aa}
+.status.cancelled{background:rgba(150,150,150,.16);color:#b5b5b5}
 .actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}.actions button{padding:8px 10px;border-radius:3px;border:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text);font-size:11px}
 .actions .confirm{background:var(--gold);border-color:var(--gold);color:#141112;font-weight:700}
 .actions .danger:hover{border-color:var(--red);color:#ef9999}
@@ -252,6 +253,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       <button class="filter" data-filter="new">🔴 Nouvelles</button>
       <button class="filter" data-filter="pending">🟠 En attente</button>
       <button class="filter" data-filter="confirmed">🟢 Confirmées</button>
+      <button class="filter" data-filter="cancelled">⚪ Annulées</button>
     </div>
 
     <div id="requests" class="requests"><div class="loading">Chargement des réservations…</div></div>
@@ -710,8 +712,10 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
           <option value="new">Nouvelle</option>
           <option value="pending">En attente</option>
           <option value="confirmed">Confirmée</option>
+          <option value="cancelled">Annulée</option>
         </select>
       </div>
+      <div class="field"><label>Heure d'arrivée prévue du chauffeur</label><input id="m-eta" placeholder="Ex : 10h45, ou dans 15 min"></div>
       <div class="grid2">
         <div class="field">
           <label>Statut de paiement</label>
@@ -774,6 +778,19 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     var d = drivers.find(function(x){ return x.id === v.assignedDriverId; });
     return d ? d.name : null;
   }
+  // Détails véhicule + chauffeur d'un véhicule donné, utilisés pour les
+  // messages WhatsApp de confirmation (voiture, chauffeur, son numéro).
+  function vehicleDriverInfo(vehicleId){
+    if (!vehicleId) return null;
+    var v = vehicles.find(function(x){ return x.id === vehicleId; });
+    if (!v) return null;
+    var d = v.assignedDriverId ? drivers.find(function(x){ return x.id === v.assignedDriverId; }) : null;
+    return {
+      vehicleLabel: v.brand + ' ' + v.model + ' — ' + v.plate,
+      driverName: d ? d.name : null,
+      driverPhone: d ? d.phone : null
+    };
+  }
 
   let requests = [];
   let activeFilter = "all";
@@ -783,7 +800,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
   let currentMonth = new Date(); currentMonth.setDate(1);
   let selectedDay = null;
 
-  function labelStatus(s){return s==="new"?"NOUVELLE":s==="pending"?"EN ATTENTE":"CONFIRMÉE"}
+  function labelStatus(s){return s==="new"?"NOUVELLE":s==="pending"?"EN ATTENTE":s==="cancelled"?"ANNULÉE":"CONFIRMÉE"}
   function fmtAr(n){ return Math.round(n).toLocaleString('fr-FR') + " Ar"; }
   function todayISO(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
   function isoToDisplay(iso){ if(!iso) return "—"; var p=iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
@@ -814,7 +831,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       return `
       <div class="request ${r.status==="new"?"new":""}">
         <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small>${requestTimeLabel(r)?'<br><small style="color:var(--muted);">Demande reçue à '+requestTimeLabel(r)+'</small>':''}</div>
-        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
+        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.driverEta?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🕒 '+r.driverEta+'</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
         <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
         <div><small>MONTANT</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
@@ -822,23 +839,31 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
           <button onclick="callClient('${r.phone}')">📞</button>
           <button onclick="whatsapp('${r.phone}')">💬</button>
           <button onclick="openManageModal('${r.id}')">⚙</button>
-          ${r.status!=="confirmed"?`<button class="confirm" onclick="confirmRequest('${r.id}')">✓</button>`:""}
+          ${(r.status!=="confirmed" && r.status!=="cancelled")?`<button class="confirm" onclick="openManageModal('${r.id}', true)">✓</button>`:""}
+          ${r.status!=="cancelled"?`<button class="danger" onclick="cancelRequest('${r.id}')" title="Annuler la course">✕</button>`:""}
           ${isDirector?`<button class="danger" onclick="deleteRequest('${r.id}')" title="Supprimer">🗑</button>`:""}
         </div>
       </div>`;
     }).join("");
   }
 
-  window.confirmRequest = async function(id){
+  // La confirmation se fait maintenant via la fenêtre "Gérer la réservation"
+  // (bouton ✓ → openManageModal(id, true)) : elle oblige à choisir un
+  // véhicule (donc un chauffeur) avant de pouvoir enregistrer le statut
+  // "Confirmée", et envoie ensuite le message WhatsApp avec les détails.
+  window.cancelRequest = async function(id){
+    var r = requests.find(function(x){ return x.id === id; });
+    if (!r) return;
+    var reason = prompt("Motif de l'annulation (optionnel, visible par le client) :", "");
+    if (reason === null) return; // la gérante a fermé la fenêtre : on n'annule rien
     try{
-      await updateDoc(doc(db,"reservations",id), { status:"confirmed" });
-      var r = requests.find(function(x){ return x.id === id; });
-      if (r && r.phone && r.phone !== "—"){
-        var msg = "Bonjour " + r.name + ", votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") est confirmée ! Merci de votre confiance.";
+      await updateDoc(doc(db,"reservations",id), { status:"cancelled", cancelReason: reason || "" });
+      if (r.phone && r.phone !== "—"){
+        var msg = "Bonjour " + r.name + ", nous sommes désolés : votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") a dû être annulée." + (reason ? " Motif : " + reason + "." : "") + " N'hésitez pas à nous contacter pour plus d'informations.";
         whatsapp(r.phone, msg);
       }
     }
-    catch(e){ console.error(e); alert("Impossible de confirmer cette réservation pour le moment."); }
+    catch(e){ console.error(e); alert("Impossible d'annuler cette réservation pour le moment."); }
   };
   window.deleteRequest = async function(id){
     if(!confirm("Supprimer définitivement cette réservation ? Cette action est irréversible.")) return;
@@ -854,7 +879,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
 
   // ---------- Manage reservation (vehicle / payment / notes / status) ----------
   var managingId = null;
-  window.openManageModal = function(id){
+  window.openManageModal = function(id, presetConfirm){
     var r = requests.find(function(x){ return x.id === id; });
     if (!r) return;
     managingId = id;
@@ -863,7 +888,8 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     document.getElementById('m-payment').value = r.paymentMethod || '';
     document.getElementById('m-mm-ref').value = r.mobileMoneyRef || '';
     document.getElementById('m-mm-ref-field').style.display = (r.paymentMethod === 'mobile_money') ? 'block' : 'none';
-    document.getElementById('m-status').value = r.status || 'new';
+    document.getElementById('m-status').value = (presetConfirm && r.status !== 'confirmed') ? 'confirmed' : (r.status || 'new');
+    document.getElementById('m-eta').value = r.driverEta || '';
     document.getElementById('m-payment-status').value = effectivePaymentStatus(r);
     document.getElementById('m-amount-paid').value = effectiveAmountPaid(r);
     document.getElementById('m-notes').value = r.notes || '';
@@ -880,20 +906,55 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     e.preventDefault();
     if (!managingId) return;
     var errBox = document.getElementById('manage-error'); errBox.style.display = 'none';
+    var newStatus = document.getElementById('m-status').value;
+    var newVehicleId = document.getElementById('m-vehicle').value || null;
+    var newEta = document.getElementById('m-eta').value.trim();
+    // On oblige à choisir le véhicule (donc le chauffeur) avant de pouvoir
+    // confirmer — c'est cette info qui part ensuite au client.
+    if (newStatus === 'confirmed' && !newVehicleId){
+      errBox.textContent = "Choisis d'abord un véhicule (donc un chauffeur) avant de confirmer la course.";
+      errBox.style.display = 'block';
+      return;
+    }
     var btn = document.getElementById('manage-submit-btn');
     btn.disabled = true; btn.textContent = 'Enregistrement…';
+    var rBefore = requests.find(function(x){ return x.id === managingId; });
+    // Infos véhicule + chauffeur "à plat" sur la réservation elle-même :
+    // c'est ce que le client peut lire depuis le site public (suivi de
+    // course), qui n'a pas accès aux fiches véhicules/chauffeurs.
+    var info = vehicleDriverInfo(newVehicleId);
     try{
       var mPayment = document.getElementById('m-payment').value || null;
       await updateDoc(doc(db,'reservations',managingId), {
-        assignedVehicleId: document.getElementById('m-vehicle').value || null,
+        assignedVehicleId: newVehicleId,
+        vehicleLabel: info ? info.vehicleLabel : null,
+        driverName: info ? info.driverName : null,
+        driverPhone: info ? info.driverPhone : null,
         paymentMethod: mPayment,
         mobileMoneyRef: (mPayment === 'mobile_money') ? document.getElementById('m-mm-ref').value.trim() : '',
-        status: document.getElementById('m-status').value,
+        status: newStatus,
+        driverEta: newEta,
         paymentStatus: document.getElementById('m-payment-status').value,
         amountPaid: parseFloat(document.getElementById('m-amount-paid').value) || 0,
         notes: document.getElementById('m-notes').value.trim()
       });
       closeManageModal();
+
+      // Course confirmée (ou véhicule/heure d'arrivée changés sur une course
+      // déjà confirmée) : on envoie automatiquement les détails au client.
+      if (rBefore && rBefore.phone && rBefore.phone !== '—' && newStatus === 'confirmed'){
+        var vehicleOrEtaChanged = (newVehicleId !== (rBefore.assignedVehicleId||null)) || (newEta !== (rBefore.driverEta||''));
+        if (rBefore.status !== 'confirmed' || vehicleOrEtaChanged){
+          var msg = "Bonjour " + rBefore.name + ", votre réservation VTC PLUS du " + isoToDisplay(rBefore.date) + (rBefore.time ? " à " + rBefore.time : "") + " (" + rBefore.pickup + " → " + rBefore.dest + ") est confirmée !";
+          if (info){
+            msg += " Véhicule : " + info.vehicleLabel + ".";
+            if (info.driverName) msg += " Chauffeur : " + info.driverName + (info.driverPhone ? " (" + info.driverPhone + ")" : "") + ".";
+          }
+          if (newEta) msg += " Arrivée prévue : " + newEta + ".";
+          msg += " Merci de votre confiance.";
+          whatsapp(rBefore.phone, msg);
+        }
+      }
     }catch(err){
       console.error(err);
       errBox.textContent = "Impossible d'enregistrer ces modifications pour le moment.";
@@ -2411,7 +2472,12 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
           amountPaid: (v.amountPaid !== undefined && v.amountPaid !== null) ? v.amountPaid : null,
           notes: v.notes || "",
           serviceType: v.serviceType || "course",
-          createdAt: v.createdAt || null
+          createdAt: v.createdAt || null,
+          driverEta: v.driverEta || "",
+          cancelReason: v.cancelReason || "",
+          vehicleLabel: v.vehicleLabel || "",
+          driverName: v.driverName || "",
+          driverPhone: v.driverPhone || ""
         };
       });
       render();
