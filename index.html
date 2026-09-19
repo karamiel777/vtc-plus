@@ -223,12 +223,12 @@
         <button type="button" id="when-asap" onclick="selectWhenMode('asap')" class="tier-btn" data-i18n="res.asap" style="flex:1; padding:14px; border-radius:2px; font-weight:600; font-size:14px; cursor:pointer; font-family:'Manrope',sans-serif;">Au plus vite</button>
         <button type="button" id="when-scheduled" onclick="selectWhenMode('scheduled')" class="tier-btn" data-i18n="res.chooseDate" style="flex:1; padding:14px; border-radius:2px; font-weight:600; font-size:14px; cursor:pointer; font-family:'Manrope',sans-serif;">Choisir une date</button>
       </div>
-      <div id="when-asap-note" data-i18n="res.asapNote" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Prise en charge sous environ 30 minutes minimum — l'heure exacte vous sera confirmée par WhatsApp.</div>
+      <div id="when-asap-note" data-i18n="res.asapNote" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Prise en charge sous environ 30 minutes minimum — l'heure exacte vous sera confirmée par WhatsApp et sur l'application.</div>
       <div id="when-scheduled-fields" style="display:none; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;">
         <input id="f-date" type="date" class="form-input">
         <input id="f-time" type="time" class="form-input">
       </div>
-      <div id="when-scheduled-note" data-i18n="res.scheduledNote" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Réservable de 24 heures à 7 jours à l'avance — vous recevrez une confirmation par WhatsApp.</div>
+      <div id="when-scheduled-note" data-i18n="res.scheduledNote" style="display:none; font-size:12.5px; color:var(--muted); line-height:1.6;">Réservable de 24 heures à 7 jours à l'avance — vous recevrez une confirmation par WhatsApp et sur l'application.</div>
     </div>
 
     <div style="display:flex; flex-direction:column; gap:6px;">
@@ -453,6 +453,26 @@
     ]);
   }
 
+  // Sur ordinateur, quand l'onglet du site est ouvert et au premier plan,
+  // Firebase ne passe PAS par le service worker (qui ne gère que les
+  // notifications reçues app fermée / en arrière-plan) — il faut un
+  // gestionnaire dédié ("foreground") pour afficher quand même une vraie
+  // notification système, sinon rien ne s'affiche à l'écran (juste le son
+  // du suivi en direct qui se met à jour). On ne l'enregistre qu'une fois.
+  var clientForegroundListenerRegistered = false;
+  function registerClientForegroundMessages(mod, messaging){
+    if (clientForegroundListenerRegistered) return;
+    clientForegroundListenerRegistered = true;
+    mod.onMessage(messaging, function(payload){
+      var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
+      var body = (payload.notification && payload.notification.body) || '';
+      try{
+        var n = new Notification(title, { body: body, icon: 'favicon-512.png' });
+        n.onclick = function(){ window.focus(); n.close(); };
+      }catch(e){ console.error('Notification au premier plan impossible :', e); }
+    });
+  }
+
   async function requestClientPush(){
     pushDebugInfo = '';
     if (!('Notification' in window) || !('serviceWorker' in navigator)){
@@ -476,6 +496,7 @@
         return null;
       }
       var messaging = messagingModule.getMessaging(app);
+      registerClientForegroundMessages(messagingModule, messaging);
       var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
       if (!token) pushDebugInfo = 'getToken() a renvoyé un jeton vide.';
       return token || null;
@@ -861,8 +882,8 @@
     'res.estimateNote':'Indicative estimate, confirmed before departure.',
     'res.pickupTime':'Pickup time',
     'res.asap':'As soon as possible', 'res.chooseDate':'Choose a date',
-    'res.asapNote':'Pickup in about 30 minutes minimum — the exact time will be confirmed via WhatsApp.',
-    'res.scheduledNote':'Bookable from 24 hours up to 7 days ahead — you will receive a confirmation via WhatsApp.',
+    'res.asapNote':'Pickup in about 30 minutes minimum — the exact time will be confirmed via WhatsApp and in the app.',
+    'res.scheduledNote':'Bookable from 24 hours up to 7 days ahead — you will receive a confirmation via WhatsApp and in the app.',
     'res.km':'Distance (km) — calculated automatically, or enter it manually',
     'res.name':'Full name', 'res.phone':'Your phone number', 'res.message':'Message (optional)',
     'res.messagePh':'Luggage, extra stop, preference…',
