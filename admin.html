@@ -115,7 +115,9 @@ h2{font-size:38px}
 .day-row:last-child{border-bottom:none}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center;padding:20px}
 .modal-overlay.show{display:flex}
-.modal{width:min(560px,100%);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:36px;max-height:90vh;overflow-y:auto}
+.modal{width:min(560px,100%);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:36px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain}
+html:has(.modal-overlay.show){overflow:hidden;height:100%}
+body:has(.modal-overlay.show){overflow:hidden;height:100%}
 .modal h3{font-size:26px;margin-bottom:22px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .modal-actions{display:flex;gap:10px;margin-top:8px}
@@ -147,6 +149,7 @@ h2{font-size:38px}
   .actions{justify-content:flex-start;width:100%}
   .vcard-grid{grid-template-columns:repeat(2,1fr)}
   .vcard{padding:16px}
+  .modal-overlay{padding:8px}
   .modal{padding:22px 16px;width:100%}
   .modal h3{font-size:21px;margin-bottom:16px}
   .grid2{grid-template-columns:1fr;gap:12px}
@@ -503,7 +506,7 @@ h2{font-size:38px}
     <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:4px; padding:14px 16px; margin-bottom:18px;">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
         <span style="font-size:12.5px; color:var(--muted); font-weight:600;">📅 Résumé du mois</span>
-        <input type="month" id="hist-month" onchange="renderMonthlySummary()" style="background:var(--bg); border:1px solid var(--border); border-radius:2px; color:var(--text); padding:6px 10px; font-family:'Manrope',sans-serif; font-size:12.5px;">
+        <input type="month" id="hist-month" oninput="renderMonthlySummary()" onchange="renderMonthlySummary()" style="background:var(--bg); border:1px solid var(--border); border-radius:2px; color:var(--text); padding:6px 10px; font-family:'Manrope',sans-serif; font-size:12.5px;">
       </div>
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:10px;">
         <div style="background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px 12px;">
@@ -532,10 +535,17 @@ h2{font-size:38px}
         <div class="field"><label>Litres</label><input id="f-fuel-liters" type="number" min="0" step="0.1"></div>
         <div class="field"><label>Km au plein</label><input id="f-fuel-km" type="number" min="0"></div>
         <div class="field">
+          <label>Type</label>
+          <select id="f-fuel-type">
+            <option value="full">Plein complet</option>
+            <option value="partial">Appoint</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Station-service</label>
           <select id="f-fuel-station"><option>Galana</option><option>Shell</option><option>Jovena</option><option>Autre</option></select>
         </div>
-        <div class="field"><label>Quartier / adresse de la station</label><input id="f-fuel-address" placeholder="Ex : Analakely"></div>
+        <div class="field" style="grid-column:1/3;"><label>Quartier / adresse de la station</label><input id="f-fuel-address" placeholder="Ex : Analakely"></div>
         <div class="field" style="grid-column:1/3;">
           <label>Qui a payé</label>
           <select id="f-fuel-paidby">
@@ -583,7 +593,8 @@ h2{font-size:38px}
     </div>
 
     <div class="modal-actions">
-      <button type="button" class="btn btn-dark" onclick="closeHistoryModal()" style="width:100%;">Fermer</button>
+      <button type="button" class="btn btn-dark" onclick="printVehicleHistory()">🖨 Imprimer</button>
+      <button type="button" class="btn btn-dark" onclick="closeHistoryModal()">Fermer</button>
     </div>
   </div>
 </div>
@@ -1397,6 +1408,44 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     printWindow('Fiche véhicule — ' + v.plate, html);
   };
 
+  window.printVehicleHistory = function(){
+    if (!historyVehicleId) return;
+    var v = vehicles.find(function(x){ return x.id === historyVehicleId; });
+    if (!v) return;
+    var vFuel = expenses.filter(function(x){ return x.vehicleId === historyVehicleId && x.category === 'fuel'; })
+      .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var vMaint = expenses.filter(function(x){ return x.vehicleId === historyVehicleId && x.category === 'maintenance'; })
+      .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var vIncidents = (incidents||[]).filter(function(x){ return x.vehicleId === historyVehicleId; })
+      .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    var fuelTotal = vFuel.reduce(function(s,x){ return s + (x.amount||0); }, 0);
+    var maintTotal = vMaint.reduce(function(s,x){ return s + (x.amount||0); }, 0);
+
+    var html = '<h1>Fiche historique — ' + v.brand + ' ' + v.model + '</h1>' +
+      '<div class="sub">' + v.plate + '</div>' +
+      '<div class="stat-grid">' +
+        '<div class="stat-box"><div class="lbl">Total carburant</div><div class="val">' + fmtAr(fuelTotal) + '</div></div>' +
+        '<div class="stat-box"><div class="lbl">Total entretien</div><div class="val">' + fmtAr(maintTotal) + '</div></div>' +
+        '<div class="stat-box"><div class="lbl">Incidents signalés</div><div class="val">' + vIncidents.length + '</div></div>' +
+      '</div>' +
+      '<div class="section"><h2>⛽ Carburant (' + vFuel.length + ')</h2>' +
+        (vFuel.length ? '<table class="mini">' + vFuel.map(function(f){
+          return '<tr><td>' + isoToDisplay(f.date) + ' · ' + fuelTypeLabel(f) + (f.station ? ' · ' + f.station : '') + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.kmAtFillup ? ' · ' + f.kmAtFillup.toLocaleString('fr-FR') + ' km' : '') + '</td><td>' + fmtAr(f.amount||0) + '</td></tr>';
+        }).join('') + '</table>' : '<p style="color:#8a857a; font-size:12.5px;">Aucun plein enregistré.</p>') +
+      '</div>' +
+      '<div class="section"><h2>🔧 Entretien (' + vMaint.length + ')</h2>' +
+        (vMaint.length ? '<table class="mini">' + vMaint.map(function(m){
+          return '<tr><td>' + isoToDisplay(m.date) + ' · ' + (m.maintType||'') + (m.garage ? ' · ' + m.garage : '') + '</td><td>' + fmtAr(m.amount||0) + '</td></tr>';
+        }).join('') + '</table>' : '<p style="color:#8a857a; font-size:12.5px;">Aucun entretien enregistré.</p>') +
+      '</div>' +
+      '<div class="section"><h2>⚠ Incidents (' + vIncidents.length + ')</h2>' +
+        (vIncidents.length ? '<table class="mini">' + vIncidents.map(function(i){
+          return '<tr><td>' + isoToDisplay(i.date) + ' — ' + (i.description||'') + '</td><td></td></tr>';
+        }).join('') + '</table>' : '<p style="color:#8a857a; font-size:12.5px;">Aucun incident signalé.</p>') +
+      '</div>';
+    printWindow('Fiche historique — ' + v.plate, html);
+  };
+
   window.printDriverSheet = function(id){
     var d = drivers.find(function(x){ return x.id === id; });
     if (!d) return;
@@ -1499,30 +1548,46 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     var month = monthInput ? monthInput.value : ''; // format "YYYY-MM"
     if (!month) return;
 
-    var fuelLogs = expenses.filter(function(x){
-      return x.vehicleId === historyVehicleId && x.category === 'fuel' && x.date && x.date.indexOf(month) === 0;
-    });
-    var fuelCost = fuelLogs.reduce(function(s,f){ return s + (f.amount||0); }, 0);
-    var fuelLiters = fuelLogs.reduce(function(s,f){ return s + (f.liters||0); }, 0);
-    document.getElementById('hist-month-fuel-cost').textContent = fuelCost ? fmtAr(fuelCost) : '0 Ar';
-    document.getElementById('hist-month-fuel-liters').textContent = fuelLogs.length
-      ? fuelLogs.length + ' plein(s)' + (fuelLiters ? ' · ' + fuelLiters.toFixed(1) + ' L' : '')
-      : 'Aucun plein';
+    try{
+      var fuelLogs = expenses.filter(function(x){
+        return x.vehicleId === historyVehicleId && x.category === 'fuel' && x.date && x.date.indexOf(month) === 0;
+      });
+      var fuelCost = fuelLogs.reduce(function(s,f){ return s + (f.amount||0); }, 0);
+      var fuelLiters = fuelLogs.reduce(function(s,f){ return s + (f.liters||0); }, 0);
+      var fullCount = fuelLogs.filter(function(f){ return f.fuelType !== 'partial'; }).length;
+      var partialCount = fuelLogs.length - fullCount;
+      var countLabel = [];
+      if (fullCount) countLabel.push(fullCount + ' plein(s)');
+      if (partialCount) countLabel.push(partialCount + ' appoint(s)');
+      document.getElementById('hist-month-fuel-cost').textContent = fuelCost ? fmtAr(fuelCost) : '0 Ar';
+      document.getElementById('hist-month-fuel-liters').textContent = fuelLogs.length
+        ? countLabel.join(' · ') + (fuelLiters ? ' · ' + fuelLiters.toFixed(1) + ' L' : '')
+        : 'Aucun plein';
+    }catch(e){ console.error('renderMonthlySummary (essence)', e); }
 
-    var ridesCount = (requests||[]).filter(function(r){
-      return r.assignedVehicleId === historyVehicleId && r.status === 'confirmed' && r.date && r.date.indexOf(month) === 0;
-    }).length;
-    document.getElementById('hist-month-rides').textContent = ridesCount + (ridesCount > 1 ? ' courses' : ' course');
+    try{
+      var ridesCount = (requests||[]).filter(function(r){
+        return r.assignedVehicleId === historyVehicleId && r.status === 'confirmed' && r.date && r.date.indexOf(month) === 0;
+      }).length;
+      document.getElementById('hist-month-rides').textContent = ridesCount + (ridesCount > 1 ? ' courses' : ' course');
+    }catch(e){ console.error('renderMonthlySummary (courses)', e); }
   }
+
+  function fuelTypeLabel(f){ return f.fuelType === 'partial' ? 'Appoint' : 'Plein complet'; }
 
   function renderFuelList(){
     if (!historyVehicleId) return;
     var fuelLogs = expenses.filter(function(x){ return x.vehicleId === historyVehicleId && x.category === 'fuel'; });
     var total = fuelLogs.reduce(function(s,f){ return s + (f.amount||0); }, 0);
-    document.getElementById('fuel-total').textContent = fuelLogs.length + ' plein(s) — total ' + fmtAr(total);
+    var fullCount = fuelLogs.filter(function(f){ return f.fuelType !== 'partial'; }).length;
+    var partialCount = fuelLogs.length - fullCount;
+    var countLabel = [];
+    if (fullCount) countLabel.push(fullCount + ' plein(s)');
+    if (partialCount) countLabel.push(partialCount + ' appoint(s)');
+    document.getElementById('fuel-total').textContent = (countLabel.length ? countLabel.join(' · ') : '0 plein') + ' — total ' + fmtAr(total);
     var box = document.getElementById('fuel-list');
     box.innerHTML = fuelLogs.length ? fuelLogs.map(function(f){
-      return '<div class="day-row"><span>' + isoToDisplay(f.date) + (f.station ? ' · ' + f.station : '') + (f.stationAddress ? ' (' + f.stationAddress + ')' : '') + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.kmAtFillup ? ' · ' + f.kmAtFillup.toLocaleString('fr-FR') + ' km' : '') + '<br><span style="color:var(--muted);">' + (FUEL_PAID_BY_LABEL[f.paidBy]||'') + '</span></span><span>' + fmtAr(f.amount||0) + '</span></div>';
+      return '<div class="day-row"><span>' + isoToDisplay(f.date) + ' · ' + fuelTypeLabel(f) + (f.station ? ' · ' + f.station : '') + (f.stationAddress ? ' (' + f.stationAddress + ')' : '') + (f.liters ? ' · ' + f.liters + ' L' : '') + (f.kmAtFillup ? ' · ' + f.kmAtFillup.toLocaleString('fr-FR') + ' km' : '') + '<br><span style="color:var(--muted);">' + (FUEL_PAID_BY_LABEL[f.paidBy]||'') + '</span></span><span>' + fmtAr(f.amount||0) + '</span></div>';
     }).join('') : '<div class="day-row"><span style="color:var(--muted);">Aucun plein enregistré.</span></div>';
   }
   function renderMaintList(){
@@ -1555,6 +1620,7 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
         amount: parseFloat(document.getElementById('f-fuel-cost').value) || 0,
         liters: parseFloat(document.getElementById('f-fuel-liters').value) || null,
         kmAtFillup: parseFloat(document.getElementById('f-fuel-km').value) || null,
+        fuelType: document.getElementById('f-fuel-type').value,
         station: document.getElementById('f-fuel-station').value,
         stationAddress: document.getElementById('f-fuel-address').value.trim(),
         paidBy: document.getElementById('f-fuel-paidby').value,
