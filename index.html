@@ -439,6 +439,7 @@
       try { saveClientData(); } catch(e) {}
       feedbackMsg(t('js.sent'), true);
       btn.textContent=t('js.sentBtn'); btn.style.opacity="1"; btn.dataset.reservationId=ref.id;
+      setTimeout(function(){ try{ resetReservationForm(); }catch(e){} }, 3500);
     } catch(error) {
       console.error("Erreur Firebase:", error);
       feedbackMsg(t('js.sendError'), false);
@@ -1011,6 +1012,40 @@
   function goToTrip(){
     document.getElementById('step-details').style.display = 'none';
     document.getElementById('step-trip').style.display = 'flex';
+    var card = document.getElementById('reservation-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (routeMap) setTimeout(function(){ routeMap.invalidateSize(); }, 250);
+  }
+
+  // Remet le formulaire à zéro après un envoi réussi, pour permettre d'enchaîner
+  // une nouvelle demande de course sans avoir à recharger la page.
+  function resetReservationForm(){
+    document.getElementById('f-pickup').value = '';
+    document.getElementById('f-dest').value = '';
+    document.getElementById('f-date').value = '';
+    document.getElementById('f-time').value = '';
+    document.getElementById('f-km').value = '';
+    document.getElementById('f-message').value = '';
+    selectedCoords.pickup = null;
+    selectedCoords.dest = null;
+    if (markerA){ routeMap.removeLayer(markerA); markerA = null; }
+    if (markerB){ routeMap.removeLayer(markerB); markerB = null; }
+    if (routeLine){ routeMap.removeLayer(routeLine); routeLine = null; }
+    if (typeof updateMapHint === 'function') updateMapHint();
+    updateEstimate();
+
+    document.getElementById('step-details').style.display = 'none';
+    document.getElementById('step-trip').style.display = 'flex';
+
+    var btn = document.getElementById('wa-submit');
+    btn.style.pointerEvents = 'auto';
+    btn.style.opacity = '1';
+    btn.textContent = t('res.submit');
+    delete btn.dataset.reservationId;
+
+    var feedback = document.getElementById('reservation-feedback');
+    if (feedback) feedback.style.display = 'none';
+
     var card = document.getElementById('reservation-card');
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (routeMap) setTimeout(function(){ routeMap.invalidateSize(); }, 250);
