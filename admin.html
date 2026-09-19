@@ -1534,7 +1534,7 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     historyVehicleId = null;
   };
 
-  function renderMonthlySummary(){
+  window.renderMonthlySummary = function(){
     if (!historyVehicleId) return;
     var monthInput = document.getElementById('hist-month');
     var month = monthInput ? monthInput.value : ''; // format "YYYY-MM"
