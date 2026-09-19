@@ -126,6 +126,39 @@ h2{font-size:38px}
   .request{grid-template-columns:1fr 1fr}.actions{justify-content:flex-start}
   .cal-day{min-height:52px}
 }
+@media(max-width:600px){
+  main{padding:22px 14px}
+  h2{font-size:26px}
+  .top{align-items:stretch}
+  .top-actions{flex-direction:column}
+  .top-actions .btn,.top-actions button{width:100%}
+  header{padding:0 14px;height:64px}
+  .header-left{gap:10px}
+  .header-left img{height:32px}
+  .logout{padding:8px 12px;font-size:12px}
+  .main-tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .main-tab{white-space:nowrap;margin-right:16px;font-size:14px}
+  .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{padding:14px}
+  .stat strong{font-size:22px;margin-top:5px}
+  .toolbar{gap:8px}
+  .filter{padding:9px 12px;font-size:12.5px}
+  .request{grid-template-columns:1fr;gap:10px;padding:16px}
+  .actions{justify-content:flex-start;width:100%}
+  .vcard-grid{grid-template-columns:repeat(2,1fr)}
+  .vcard{padding:16px}
+  .modal{padding:22px 16px;width:100%}
+  .modal h3{font-size:21px;margin-bottom:16px}
+  .grid2{grid-template-columns:1fr;gap:12px}
+  .day-detail{padding:16px}
+  .calendar{gap:4px}
+  .cal-day{min-height:44px;padding:6px}
+  .month-label{font-size:21px}
+  .month-nav{gap:10px}
+  table{font-size:12px}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-scroll table{min-width:520px}
+}
 </style>
 </head>
 <body>
@@ -295,6 +328,7 @@ h2{font-size:38px}
       </div>
       <div class="stats" id="tresor-stats"></div>
       <div class="day-detail" style="padding:20px;">
+        <div class="table-scroll">
         <table style="width:100%; border-collapse:collapse; font-size:13px;">
           <thead><tr style="text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase;">
             <th style="padding:8px 6px;">Type</th><th style="padding:8px 6px;">Description</th><th style="padding:8px 6px;">Moyen</th>
@@ -302,6 +336,7 @@ h2{font-size:38px}
           </tr></thead>
           <tbody id="tresor-tbody"></tbody>
         </table>
+        </div>
       </div>
     </div>
 
@@ -464,6 +499,25 @@ h2{font-size:38px}
 <div id="history-modal" class="modal-overlay">
   <div class="modal" style="max-width:640px;">
     <h3 id="history-title">Historique du véhicule</h3>
+
+    <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:4px; padding:14px 16px; margin-bottom:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <span style="font-size:12.5px; color:var(--muted); font-weight:600;">📅 Résumé du mois</span>
+        <input type="month" id="hist-month" onchange="renderMonthlySummary()" style="background:var(--bg); border:1px solid var(--border); border-radius:2px; color:var(--text); padding:6px 10px; font-family:'Manrope',sans-serif; font-size:12.5px;">
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:10px;">
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px 12px;">
+          <div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;">Essence</div>
+          <div id="hist-month-fuel-cost" style="font-size:16px; font-weight:700; color:var(--text);">—</div>
+          <div id="hist-month-fuel-liters" style="font-size:11.5px; color:var(--muted); margin-top:2px;"></div>
+        </div>
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:10px 12px;">
+          <div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;">Courses</div>
+          <div id="hist-month-rides" style="font-size:16px; font-weight:700; color:var(--text);">—</div>
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button type="button" class="filter active" id="htab-fuel" onclick="setHistoryTab('fuel')">⛽ Carburant</button>
       <button type="button" class="filter" id="htab-maint" onclick="setHistoryTab('maint')">🔧 Entretien</button>
@@ -1090,7 +1144,7 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     expensesUnsub = onSnapshot(query(collection(db,'expenses'), orderBy('date','desc')), function(snap){
       expenses = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderVehicles();
-      if (historyVehicleId){ renderFuelList(); renderMaintList(); }
+      if (historyVehicleId){ renderFuelList(); renderMaintList(); renderMonthlySummary(); }
       if (document.getElementById('view-finances').classList.contains('active')) renderFinanceTab();
     });
   }
@@ -1422,8 +1476,9 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     document.getElementById('f-maint-date').value = todayISO();
     document.getElementById('f-inc-date').value = todayISO();
     setHistoryTab('fuel');
+    document.getElementById('hist-month').value = todayISO().slice(0,7);
     stopHistoryListeners();
-    renderFuelList(); renderMaintList();
+    renderFuelList(); renderMaintList(); renderMonthlySummary();
 
     incidentUnsub = onSnapshot(query(collection(db,'incidents'), orderBy('date','desc')), function(snap){
       incidents = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }).filter(function(x){ return x.vehicleId === historyVehicleId; });
@@ -1437,6 +1492,28 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     stopHistoryListeners();
     historyVehicleId = null;
   };
+
+  function renderMonthlySummary(){
+    if (!historyVehicleId) return;
+    var monthInput = document.getElementById('hist-month');
+    var month = monthInput ? monthInput.value : ''; // format "YYYY-MM"
+    if (!month) return;
+
+    var fuelLogs = expenses.filter(function(x){
+      return x.vehicleId === historyVehicleId && x.category === 'fuel' && x.date && x.date.indexOf(month) === 0;
+    });
+    var fuelCost = fuelLogs.reduce(function(s,f){ return s + (f.amount||0); }, 0);
+    var fuelLiters = fuelLogs.reduce(function(s,f){ return s + (f.liters||0); }, 0);
+    document.getElementById('hist-month-fuel-cost').textContent = fuelCost ? fmtAr(fuelCost) : '0 Ar';
+    document.getElementById('hist-month-fuel-liters').textContent = fuelLogs.length
+      ? fuelLogs.length + ' plein(s)' + (fuelLiters ? ' · ' + fuelLiters.toFixed(1) + ' L' : '')
+      : 'Aucun plein';
+
+    var ridesCount = (requests||[]).filter(function(r){
+      return r.assignedVehicleId === historyVehicleId && r.status === 'confirmed' && r.date && r.date.indexOf(month) === 0;
+    }).length;
+    document.getElementById('hist-month-rides').textContent = ridesCount + (ridesCount > 1 ? ' courses' : ' course');
+  }
 
   function renderFuelList(){
     if (!historyVehicleId) return;
@@ -2264,6 +2341,7 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
       render();
       if(document.getElementById("view-stats").classList.contains("active")) renderStats();
       if(document.getElementById("view-finances").classList.contains("active")) renderFinanceTab();
+      if(historyVehicleId) renderMonthlySummary();
       if(!firstSnapshot){
         const hasNew = snap.docChanges().some(c => c.type === "added");
         if(hasNew) showNewAlert();
