@@ -376,25 +376,17 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       <div class="field">
         <label>Catégorie</label>
         <select id="e-category" onchange="onExpenseCategoryChange()">
-          <option value="fuel">⛽ Carburant</option>
           <option value="maintenance">🔧 Entretien</option>
           <option value="salary">👨‍💼 Salaire / paiement chauffeur</option>
           <option value="other">📄 Autre dépense</option>
         </select>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">⛽ Pour le carburant, ajoute-le depuis la fiche du véhicule concerné (Flotte → véhicule → Historique), pour que le kilométrage et le type de plein soient bien liés à la voiture.</div>
       </div>
       <div class="grid2">
         <div class="field"><label>Date</label><input id="e-date" type="date" required></div>
         <div class="field"><label>Montant (Ar)</label><input id="e-amount" type="number" min="0" required></div>
       </div>
-      <div class="field"><label>Description</label><input id="e-description" required placeholder="Ex : Plein Galana, Salaire septembre…"></div>
-
-      <div id="e-fuel-fields" class="grid2" style="display:none;">
-        <div class="field">
-          <label>Station-service</label>
-          <select id="e-station"><option>Galana</option><option>Shell</option><option>Jovena</option><option>Autre</option></select>
-        </div>
-        <div class="field"><label>Quartier / adresse</label><input id="e-station-address"></div>
-      </div>
+      <div class="field"><label>Description</label><input id="e-description" required placeholder="Ex : Vidange, Salaire septembre…"></div>
 
       <div id="e-maint-fields" class="grid2" style="display:none;">
         <div class="field"><label>Type d'entretien</label><input id="e-maint-type" placeholder="Ex : Vidange"></div>
@@ -533,7 +525,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
         <div class="field"><label>Date</label><input id="f-fuel-date" type="date" required></div>
         <div class="field"><label>Coût (Ar)</label><input id="f-fuel-cost" type="number" min="0" required></div>
         <div class="field"><label>Litres</label><input id="f-fuel-liters" type="number" min="0" step="0.1"></div>
-        <div class="field"><label>Km au plein</label><input id="f-fuel-km" type="number" min="0"></div>
+        <div class="field"><label>Km au compteur</label><input id="f-fuel-km" type="number" min="0"></div>
         <div class="field">
           <label>Type</label>
           <select id="f-fuel-type">
@@ -1708,14 +1700,13 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
   // ---- Dépenses ----
   window.onExpenseCategoryChange = function(){
     var cat = document.getElementById('e-category').value;
-    document.getElementById('e-fuel-fields').style.display = cat === 'fuel' ? 'grid' : 'none';
     document.getElementById('e-maint-fields').style.display = cat === 'maintenance' ? 'grid' : 'none';
   };
 
   window.openExpenseModal = function(){
     document.getElementById('expense-form').reset();
     document.getElementById('e-date').value = todayISO();
-    document.getElementById('e-category').value = 'fuel';
+    document.getElementById('e-category').value = 'maintenance';
     onExpenseCategoryChange();
     fillVehicleSelect(document.getElementById('e-vehicle'), '');
     fillDriverSelect(document.getElementById('e-driver'), '');
@@ -1742,10 +1733,6 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
         notes: document.getElementById('e-notes').value.trim(),
         createdAt: serverTimestamp()
       };
-      if (cat === 'fuel'){
-        payload.station = document.getElementById('e-station').value;
-        payload.stationAddress = document.getElementById('e-station-address').value.trim();
-      }
       if (cat === 'maintenance'){
         payload.maintType = document.getElementById('e-maint-type').value.trim();
         payload.garage = document.getElementById('e-garage').value.trim();
