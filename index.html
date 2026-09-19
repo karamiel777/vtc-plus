@@ -83,9 +83,10 @@
   </div>
 
   <div id="push-banner" style="display:none; position:relative; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; padding:10px 44px; background:var(--surface-2); border-bottom:1px solid var(--gold); color:var(--text); font-size:13px; font-weight:600; text-align:center; font-family:'Manrope',sans-serif;">
-    <span data-i18n="nav.pushBannerText">🔔 Activez les notifications pour être prévenu(e) dès que votre course est confirmée</span>
-    <button type="button" onclick="enableClientNotifications()" data-i18n="nav.pushEnable" style="background:var(--gold); color:#141112; border:none; padding:7px 16px; border-radius:2px; font-weight:700; cursor:pointer; font-size:12.5px; font-family:'Manrope',sans-serif;">🔔 Activer</button>
+    <span id="push-banner-text" data-i18n="nav.pushBannerText">🔔 Activez les notifications pour être prévenu(e) dès que votre course est confirmée</span>
+    <button type="button" onclick="enableClientNotifications()" id="push-banner-btn" data-i18n="nav.pushEnable" style="background:var(--gold); color:#141112; border:none; padding:7px 16px; border-radius:2px; font-weight:700; cursor:pointer; font-size:12.5px; font-family:'Manrope',sans-serif;">🔔 Activer</button>
     <button type="button" onclick="dismissPushBanner()" aria-label="Fermer" style="background:transparent; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:0 6px; position:absolute; right:12px; top:50%; transform:translateY(-50%);">×</button>
+    <div id="push-diag" style="display:none; width:100%; font-size:11px; font-weight:400; color:var(--muted); margin-top:2px;"></div>
   </div>
 
 <header style="display:flex; align-items:center; justify-content:space-between; padding:0 56px; height:88px; background:rgba(11,11,12,0.94); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);">
@@ -433,28 +434,93 @@
   // reste affiché tant que la permission n'a pas été obtenue — un tap
   // dessus déclenche la même demande, mais avec le geste requis par iOS.
   var pendingPushToken = null;
+  // Raison technique de la dernière tentative ratée d'obtention du jeton —
+  // affichée dans le bandeau pour pouvoir diagnostiquer à distance au lieu
+  // de deviner (utile puisque l'app tourne sur l'iPhone de la cliente, pas
+  // sur un appareil où on peut ouvrir la console).
+  var pushDebugInfo = '';
+
+  // navigator.serviceWorker.ready ne se résout QUE si un service worker
+  // finit par prendre le contrôle de la page. Si l'enregistrement échoue
+  // silencieusement (voir plus bas), cette promesse peut ne jamais se
+  // résoudre et bloquer tout le reste indéfiniment. On limite donc l'attente.
+  function serviceWorkerReadyWithTimeout(ms){
+    return Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise(function(_, reject){
+        setTimeout(function(){ reject(new Error('Le service worker n\'a pas démarré à temps (timeout).')); }, ms);
+      })
+    ]);
+  }
 
   async function requestClientPush(){
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
-    if (Notification.permission === 'denied') return null;
-    var perm = await Notification.requestPermission();
-    if (perm !== 'granted') return null;
-    var swReg = await navigator.serviceWorker.ready;
-    var messagingModule = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
-    if (messagingModule.isSupported && !(await messagingModule.isSupported())) return null;
-    var messaging = messagingModule.getMessaging(app);
-    var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
-    return token || null;
+    pushDebugInfo = '';
+    if (!('Notification' in window) || !('serviceWorker' in navigator)){
+      pushDebugInfo = 'Notifications non supportées par ce navigateur.';
+      return null;
+    }
+    if (Notification.permission === 'denied'){
+      pushDebugInfo = 'Permission de notification refusée (à réactiver dans les réglages du navigateur).';
+      return null;
+    }
+    try{
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted'){
+        pushDebugInfo = 'Permission non accordée (' + perm + ').';
+        return null;
+      }
+      var swReg = await serviceWorkerReadyWithTimeout(8000);
+      var messagingModule = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
+      if (messagingModule.isSupported && !(await messagingModule.isSupported())){
+        pushDebugInfo = 'Push non supporté sur cet appareil/navigateur (isSupported=false). Sur iPhone, il faut avoir ajouté le site à l\'écran d\'accueil et l\'ouvrir depuis cette icône.';
+        return null;
+      }
+      var messaging = messagingModule.getMessaging(app);
+      var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
+      if (!token) pushDebugInfo = 'getToken() a renvoyé un jeton vide.';
+      return token || null;
+    }catch(e){
+      pushDebugInfo = 'Erreur technique : ' + (e && e.message ? e.message : String(e));
+      return null;
+    }
   }
 
   function refreshPushBanner(){
     var banner = document.getElementById('push-banner');
     if (!banner) return;
+    var diag = document.getElementById('push-diag');
+    var btn = document.getElementById('push-banner-btn');
+    var textEl = document.getElementById('push-banner-text');
     var dismissed = false;
     try{ dismissed = localStorage.getItem('vtcplus_push_banner_dismissed') === '1'; }catch(e){}
     var supported = ('Notification' in window) && ('serviceWorker' in navigator);
-    var stillNeeded = supported && Notification.permission === 'default' && !pendingPushToken;
-    banner.style.display = (stillNeeded && !dismissed) ? 'flex' : 'none';
+
+    if (pendingPushToken){
+      banner.style.display = 'none';
+      return;
+    }
+    // Permission jamais demandée : bandeau normal "Activer".
+    if (supported && Notification.permission === 'default' && !dismissed){
+      if (textEl) textEl.textContent = currentLang === 'en'
+        ? '🔔 Enable notifications to be notified as soon as your ride is confirmed'
+        : '🔔 Activez les notifications pour être prévenu(e) dès que votre course est confirmée';
+      if (btn) btn.textContent = currentLang === 'en' ? '🔔 Enable' : '🔔 Activer';
+      if (diag) diag.style.display = 'none';
+      banner.style.display = 'flex';
+      return;
+    }
+    // Permission déjà accordée mais aucun jeton obtenu : quelque chose a
+    // échoué techniquement — on le montre au lieu de disparaître en silence.
+    if (supported && Notification.permission === 'granted' && !pendingPushToken && pushDebugInfo){
+      if (textEl) textEl.textContent = currentLang === 'en'
+        ? '⚠️ Notifications enabled, but the connection failed. Try again:'
+        : '⚠️ Notifications activées, mais la connexion a échoué. Réessayer :';
+      if (btn) btn.textContent = currentLang === 'en' ? '🔁 Retry' : '🔁 Réessayer';
+      if (diag){ diag.textContent = pushDebugInfo; diag.style.display = 'block'; }
+      banner.style.display = 'flex';
+      return;
+    }
+    banner.style.display = 'none';
   }
 
   window.dismissPushBanner = function(){
@@ -483,7 +549,7 @@
     try{
       var token = await requestClientPush();
       await applyClientPushToken(token);
-    }catch(e){ /* refusé ou indisponible */ }
+    }catch(e){ pushDebugInfo = 'Erreur inattendue : ' + (e && e.message ? e.message : String(e)); }
     refreshPushBanner();
   };
 
@@ -491,7 +557,7 @@
     try{
       var token = await requestClientPush();
       await applyClientPushToken(token);
-    }catch(e){ /* refusé, indisponible, ou bloqué par iOS sans geste — pas grave */ }
+    }catch(e){ pushDebugInfo = 'Erreur inattendue : ' + (e && e.message ? e.message : String(e)); }
     refreshPushBanner();
   })();
 
