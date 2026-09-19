@@ -31,9 +31,13 @@ messaging.onBackgroundMessage(function (payload) {
   self.registration.showNotification(title, options);
 });
 
-// Un tap sur la notification ramène (ou ouvre) le site.
+// Un tap sur la notification ramène (ou ouvre) le site. On utilise une URL
+// absolue (basée sur la portée du service worker) plutôt qu'un simple
+// "index.html" relatif : un chemin relatif peut échouer à s'ouvrir selon le
+// contexte d'où part le clic, et amener sur un onglet vide.
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
+  var targetUrl = new URL('index.html', self.registration.scope).href;
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
@@ -41,7 +45,7 @@ self.addEventListener('notificationclick', function (event) {
           return clientList[i].focus();
         }
       }
-      if (clients.openWindow) return clients.openWindow('index.html');
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });
