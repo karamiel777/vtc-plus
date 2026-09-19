@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VTC PLUS — Ma course</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{
+    --bg:#0B0B0C; --surface:#141416; --surface-2:#1A1A1D; --border:#28251E;
+    --text:#F4F0E6; --muted:#A5A093; --gold:#C9A45C; --gold-bright:#E4C382;
+    --green:#65B889; --red:#D95757;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Manrope', -apple-system, sans-serif; -webkit-font-smoothing:antialiased; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:32px 16px;}
+  .card{width:100%; max-width:420px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:28px 24px; margin-top:24px;}
+  .logo{font-family:'Cormorant Garamond', serif; font-size:22px; color:var(--gold-bright); text-align:center; margin-bottom:4px;}
+  .sub{text-align:center; color:var(--muted); font-size:12.5px; margin-bottom:24px;}
+  .badge{display:inline-block; padding:6px 12px; border-radius:2px; font-size:11.5px; font-weight:700; letter-spacing:.03em; margin-bottom:16px;}
+  .badge.assigned{background:rgba(217,154,69,.15); color:#e5b36d;}
+  .badge.en_route{background:rgba(101,184,137,.15); color:#8ed3aa;}
+  .badge.completed{background:rgba(150,150,150,.16); color:#b5b5b5;}
+  .badge.cancelled{background:rgba(217,87,87,.15); color:#ef9999;}
+  .row{margin-bottom:16px;}
+  .row small{display:block; color:var(--muted); font-size:11px; margin-bottom:4px; letter-spacing:.02em;}
+  .row strong{font-size:15.5px; line-height:1.4;}
+  .row a{color:var(--gold-bright); text-decoration:none;}
+  .btn{display:block; width:100%; padding:15px; border-radius:4px; border:none; font-weight:700; font-size:15px; cursor:pointer; text-align:center; font-family:inherit; margin-top:10px;}
+  .btn-start{background:var(--gold); color:#141112;}
+  .btn-end{background:var(--green); color:#0B1F14;}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .msg{text-align:center; padding:20px 10px; color:var(--muted); font-size:14px; line-height:1.6;}
+  .loading{text-align:center; color:var(--muted); padding:40px 0;}
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <div class="logo">VTC PLUS</div>
+  <div class="sub">Espace chauffeur</div>
+  <div id="content" class="loading">Chargement…</div>
+</div>
+
+<script type="module">
+  import { db } from "./firebase-config.js";
+  import { doc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+
+  var params = new URLSearchParams(window.location.search);
+  var reservationId = params.get('res');
+  var content = document.getElementById('content');
+
+  function isoToDisplay(iso){
+    if (!iso) return '';
+    var p = iso.split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+  }
+
+  function badgeFor(progress, status){
+    if (status === 'cancelled') return '<span class="badge cancelled">❌ ANNULÉE</span>';
+    if (progress === 'completed') return '<span class="badge completed">✅ TERMINÉE</span>';
+    if (progress === 'en_route') return '<span class="badge en_route">🚗 EN ROUTE</span>';
+    return '<span class="badge assigned">🕓 ASSIGNÉE</span>';
+  }
+
+  function render(r){
+    if (!r){
+      content.innerHTML = '<div class="msg">Course introuvable. Vérifie le lien reçu par WhatsApp.</div>';
+      return;
+    }
+    var progress = r.driverProgress || 'assigned';
+    var phoneClean = (r.phone||'').replace(/\s/g,'');
+    var html = '';
+    html += badgeFor(progress, r.status);
+    html += '<div class="row"><small>CLIENT</small><strong>' + (r.name||'—') + '</strong></div>';
+    html += '<div class="row"><small>TÉLÉPHONE</small><strong><a href="tel:' + phoneClean + '">' + (r.phone||'—') + '</a></strong></div>';
+    html += '<div class="row"><small>PRISE EN CHARGE</small><strong>' + (r.pickup||'—') + '</strong></div>';
+    html += '<div class="row"><small>DESTINATION</small><strong>' + (r.destination||'—') + '</strong></div>';
+    html += '<div class="row"><small>QUAND</small><strong>' + isoToDisplay(r.date) + (r.time ? ' à ' + r.time : (r.whenMode === 'asap' ? ' — au plus vite' : '')) + '</strong></div>';
+    if (r.message) html += '<div class="row"><small>MESSAGE DU CLIENT</small><strong>' + r.message + '</strong></div>';
+
+    if (r.status === 'cancelled'){
+      html += '<div class="msg">Cette course a été annulée — rien à faire.</div>';
+    } else if (progress === 'completed'){
+      html += '<div class="msg">Course terminée. Merci !</div>';
+    } else if (progress === 'en_route'){
+      html += '<button class="btn btn-end" id="btn-end">✅ Terminer la course</button>';
+    } else {
+      html += '<button class="btn btn-start" id="btn-start">🚗 Commencer (en route vers le client)</button>';
+    }
+
+    content.innerHTML = html;
+
+    var btnStart = document.getElementById('btn-start');
+    if (btnStart) btnStart.onclick = function(){
+      btnStart.disabled = true; btnStart.textContent = 'Enregistrement…';
+      updateDoc(doc(db, 'reservations', reservationId), {
+        driverProgress: 'en_route',
+        driverProgressAt: serverTimestamp()
+      }).catch(function(e){
+        console.error(e);
+        btnStart.disabled = false; btnStart.textContent = '🚗 Commencer (en route vers le client)';
+        alert("Impossible d'enregistrer pour le moment, réessaie.");
+      });
+    };
+    var btnEnd = document.getElementById('btn-end');
+    if (btnEnd) btnEnd.onclick = function(){
+      btnEnd.disabled = true; btnEnd.textContent = 'Enregistrement…';
+      updateDoc(doc(db, 'reservations', reservationId), {
+        driverProgress: 'completed',
+        driverProgressAt: serverTimestamp()
+      }).catch(function(e){
+        console.error(e);
+        btnEnd.disabled = false; btnEnd.textContent = '✅ Terminer la course';
+        alert("Impossible d'enregistrer pour le moment, réessaie.");
+      });
+    };
+  }
+
+  if (!reservationId){
+    content.innerHTML = '<div class="msg">Lien invalide — il manque l\'identifiant de la course.</div>';
+  } else {
+    onSnapshot(doc(db, 'reservations', reservationId), function(snap){
+      render(snap.exists() ? snap.data() : null);
+    }, function(err){
+      console.error(err);
+      content.innerHTML = '<div class="msg">Impossible de charger cette course pour le moment.</div>';
+    });
+  }
+</script>
+
+</body>
+</html>

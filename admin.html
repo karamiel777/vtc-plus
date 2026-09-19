@@ -831,7 +831,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       return `
       <div class="request ${r.status==="new"?"new":""}">
         <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small>${requestTimeLabel(r)?'<br><small style="color:var(--muted);">Demande reçue à '+requestTimeLabel(r)+'</small>':''}</div>
-        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.driverEta?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🕒 '+r.driverEta+'</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
+        <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.driverEta?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🕒 '+r.driverEta+'</span>':''}${r.driverProgress==='en_route'?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 Chauffeur en route</span>':r.driverProgress==='completed'?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">✅ Terminée (chauffeur)</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
         <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
         <div><small>MONTANT</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
@@ -839,6 +839,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
           <button onclick="callClient('${r.phone}')">📞</button>
           <button onclick="whatsapp('${r.phone}')">💬</button>
           <button onclick="openManageModal('${r.id}')">⚙</button>
+          ${veh?`<button onclick="sendDriverLink('${r.id}')" title="Envoyer le lien de la course au chauffeur">📤</button>`:""}
           ${(r.status!=="confirmed" && r.status!=="cancelled")?`<button class="confirm" onclick="openManageModal('${r.id}', true)">✓</button>`:""}
           ${r.status!=="cancelled"?`<button class="danger" onclick="cancelRequest('${r.id}')" title="Annuler la course">✕</button>`:""}
           ${isDirector?`<button class="danger" onclick="deleteRequest('${r.id}')" title="Supprimer">🗑</button>`:""}
@@ -846,6 +847,20 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       </div>`;
     }).join("");
   }
+
+  // Envoie au chauffeur (par WhatsApp) le lien vers sa page de suivi de
+  // cette course précise (chauffeur.html), où il verra les infos client
+  // et pourra appuyer sur "Commencer" / "Terminer" lui-même.
+  window.sendDriverLink = function(id){
+    var r = requests.find(function(x){ return x.id === id; });
+    if (!r) return;
+    if (!r.assignedVehicleId){ alert("Assigne d'abord un véhicule à cette course (bouton ⚙)."); return; }
+    var info = vehicleDriverInfo(r.assignedVehicleId);
+    if (!info || !info.driverPhone){ alert("Ce véhicule n'a pas de chauffeur avec un numéro de téléphone renseigné."); return; }
+    var link = window.location.origin + window.location.pathname.replace(/admin\.html$/, '') + 'chauffeur.html?res=' + id;
+    var msg = "Nouvelle course VTC PLUS : " + r.name + " (" + r.phone + ") — " + r.pickup + " → " + r.dest + ", " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + (r.driverEta ? " (arrivée prévue " + r.driverEta + ")" : "") + ". Détails et suivi : " + link;
+    whatsapp(info.driverPhone, msg);
+  };
 
   // La confirmation se fait maintenant via la fenêtre "Gérer la réservation"
   // (bouton ✓ → openManageModal(id, true)) : elle oblige à choisir un
@@ -2477,7 +2492,9 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
           cancelReason: v.cancelReason || "",
           vehicleLabel: v.vehicleLabel || "",
           driverName: v.driverName || "",
-          driverPhone: v.driverPhone || ""
+          driverPhone: v.driverPhone || "",
+          driverProgress: v.driverProgress || "",
+          driverProgressAt: v.driverProgressAt || null
         };
       });
       render();
