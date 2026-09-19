@@ -1,6 +1,51 @@
 // Service worker VTC PLUS — mise en cache légère de la coquille de l'app.
 // Les appels en temps réel (Firestore, cartes, géocodage, itinéraires) ne sont
 // JAMAIS mis en cache : ils doivent toujours passer par le réseau.
+//
+// Gère aussi la réception des notifications push (Firebase Cloud Messaging)
+// côté client, pour prévenir quand une course est confirmée — y compris
+// quand l'app est fermée ou le téléphone verrouillé.
+importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "AIzaSyABNLn0CJcxH_skC9QqRsKLbY_tvP5hvV0",
+  authDomain: "vtc-plus-a6242.firebaseapp.com",
+  projectId: "vtc-plus-a6242",
+  storageBucket: "vtc-plus-a6242.firebasestorage.app",
+  messagingSenderId: "500809490080",
+  appId: "1:500809490080:web:111996fe837bad8bcdb3c5"
+});
+
+var messaging = firebase.messaging();
+
+// Notification reçue alors que le site n'est pas au premier plan.
+messaging.onBackgroundMessage(function (payload) {
+  var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
+  var options = {
+    body: (payload.notification && payload.notification.body) || '',
+    icon: 'favicon-512.png',
+    badge: 'favicon-512.png',
+    data: payload.data || {}
+  };
+  self.registration.showNotification(title, options);
+});
+
+// Un tap sur la notification ramène (ou ouvre) le site.
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        if (clientList[i].url.indexOf('index.html') !== -1 && 'focus' in clientList[i]) {
+          return clientList[i].focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow('index.html');
+    })
+  );
+});
+
 var CACHE_NAME = 'vtcplus-v1';
 var APP_SHELL = [
   './',

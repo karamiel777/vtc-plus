@@ -787,6 +787,11 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
   function fmtAr(n){ return Math.round(n).toLocaleString('fr-FR') + " Ar"; }
   function todayISO(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
   function isoToDisplay(iso){ if(!iso) return "—"; var p=iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; }
+  function requestTimeLabel(r){
+    if (!r.createdAt || typeof r.createdAt.toDate !== 'function') return '';
+    try{ return r.createdAt.toDate().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }); }
+    catch(e){ return ''; }
+  }
 
   // ---------- Reservations list ----------
   function render(){
@@ -808,7 +813,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       const veh = vehicles.find(v=>v.id===r.assignedVehicleId);
       return `
       <div class="request ${r.status==="new"?"new":""}">
-        <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small></div>
+        <div><small>CLIENT</small><strong>${r.name}</strong><br><small>${r.phone}</small>${requestTimeLabel(r)?'<br><small style="color:var(--muted);">Demande reçue à '+requestTimeLabel(r)+'</small>':''}</div>
         <div class="route"><small>TRAJET</small><strong>${r.pickup} → ${r.dest}</strong><br>${isoToDisplay(r.date)}${r.time?" à "+r.time:""}${veh?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">🚗 '+veh.brand+' '+veh.model+' — '+veh.plate+'</span>':''}${r.paymentMethod?'<br><span class="source-tag" style="margin-top:4px; display:inline-block;">'+(PAYMENT_LABEL[r.paymentMethod]||r.paymentMethod)+'</span>':''}</div>
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
         <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
@@ -825,7 +830,14 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
   }
 
   window.confirmRequest = async function(id){
-    try{ await updateDoc(doc(db,"reservations",id), { status:"confirmed" }); }
+    try{
+      await updateDoc(doc(db,"reservations",id), { status:"confirmed" });
+      var r = requests.find(function(x){ return x.id === id; });
+      if (r && r.phone && r.phone !== "—"){
+        var msg = "Bonjour " + r.name + ", votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") est confirmée ! Merci de votre confiance.";
+        whatsapp(r.phone, msg);
+      }
+    }
     catch(e){ console.error(e); alert("Impossible de confirmer cette réservation pour le moment."); }
   };
   window.deleteRequest = async function(id){
@@ -834,7 +846,11 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     catch(e){ console.error(e); alert("Seul le compte direction peut supprimer une réservation."); }
   };
   window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
-  window.whatsapp = function(phone){ window.open("https://wa.me/"+phone.replace(/\D/g,""),"_blank"); };
+  window.whatsapp = function(phone, message){
+    var url = "https://wa.me/" + phone.replace(/\D/g,"");
+    if (message) url += "?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
+  };
 
   // ---------- Manage reservation (vehicle / payment / notes / status) ----------
   var managingId = null;
@@ -2394,7 +2410,8 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
           paymentStatus: v.paymentStatus || null,
           amountPaid: (v.amountPaid !== undefined && v.amountPaid !== null) ? v.amountPaid : null,
           notes: v.notes || "",
-          serviceType: v.serviceType || "course"
+          serviceType: v.serviceType || "course",
+          createdAt: v.createdAt || null
         };
       });
       render();

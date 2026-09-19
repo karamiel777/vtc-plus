@@ -233,6 +233,13 @@
 
     <a id="wa-submit" href="#" class="btn btn-gold" data-i18n="res.submit" style="justify-content:center; margin-top:8px;" onclick="submitReservation(event)">Envoyer ma demande</a>
     <div id="reservation-feedback" style="display:none; padding:13px 15px; border-radius:2px; font-size:13px; line-height:1.5;"></div>
+    <div id="push-optin" style="display:none; margin-top:10px; padding:13px 15px; border-radius:2px; font-size:12.5px; line-height:1.5; background:rgba(201,164,92,.08); border:1px solid var(--border);">
+      <span id="push-optin-msg">🔔 Envie d'être prévenu(e) dès que votre course est confirmée ? Autorisez les notifications.</span>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button type="button" class="btn btn-gold" style="flex:1; padding:9px 12px; font-size:12.5px;" onclick="enableClientPush()">Autoriser</button>
+        <button type="button" class="btn btn-dark" style="flex:1; padding:9px 12px; font-size:12.5px;" onclick="dismissPushOptin()">Non merci</button>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -397,8 +404,13 @@
 
 
 <script type="module">
-  import { db } from "./firebase-config.js";
-  import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+  import { app, db } from "./firebase-config.js";
+  import { addDoc, collection, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+
+  // Clé VAPID Web Push — la même que celle déjà collée dans admin.html
+  // (Firebase Console → Paramètres du projet → Cloud Messaging → Web Push certificates).
+  var PUSH_VAPID_KEY = "COLLER_ICI_LA_CLE_VAPID";
+  var lastReservationId = null;
 
   window.submitReservation = async function(event) {
     if (event) event.preventDefault();
@@ -426,6 +438,8 @@
     if (!mode) return feedbackMsg(t('js.needWhen'), false);
     if (mode === "scheduled" && (!date || !time)) return feedbackMsg(t('js.needDateTime'), false);
     btn.style.pointerEvents="none"; btn.style.opacity=".65"; btn.textContent=t('js.sending'); feedback.style.display="none";
+    var pushOptin = document.getElementById('push-optin');
+    if (pushOptin) pushOptin.style.display = "none";
     try {
       var tier = selectedTier === "premium" ? "Premium" : "Comfort";
       var fareAmount = Math.max(MIN_FARE[selectedTier], Math.round(km * RATES[selectedTier] / 100) * 100);
@@ -439,11 +453,61 @@
       try { saveClientData(); } catch(e) {}
       feedbackMsg(t('js.sent'), true);
       btn.textContent=t('js.sentBtn'); btn.style.opacity="1"; btn.dataset.reservationId=ref.id;
+      lastReservationId = ref.id;
+      if (pushOptin){
+        document.getElementById('push-optin-msg').textContent = "🔔 Envie d'être prévenu(e) dès que votre course est confirmée ? Autorisez les notifications.";
+        pushOptin.style.display = "block";
+      }
       setTimeout(function(){ try{ resetReservationForm(); }catch(e){} }, 3500);
     } catch(error) {
       console.error("Erreur Firebase:", error);
       feedbackMsg(t('js.sendError'), false);
       btn.style.pointerEvents="auto"; btn.style.opacity="1"; btn.textContent=t('res.submit');
+    }
+  };
+
+  window.dismissPushOptin = function(){
+    var el = document.getElementById('push-optin');
+    if (el) el.style.display = 'none';
+  };
+
+  window.enableClientPush = async function(){
+    var msgEl = document.getElementById('push-optin-msg');
+    function setMsg(text){ if (msgEl) msgEl.textContent = text; }
+    var reservationId = lastReservationId;
+    if (!reservationId){ setMsg("Impossible d'activer les notifications pour le moment."); return; }
+    try{
+      if (!('Notification' in window) || !('serviceWorker' in navigator)){
+        setMsg("Non disponible sur ce navigateur — sur iPhone, ajoutez d'abord le site à votre écran d'accueil.");
+        return;
+      }
+      if (Notification.permission === 'denied'){
+        setMsg("Les notifications sont bloquées pour ce site dans les réglages de votre téléphone.");
+        return;
+      }
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted'){
+        setMsg("Notifications refusées — vous pouvez réessayer plus tard.");
+        return;
+      }
+      var swReg = await navigator.serviceWorker.ready;
+      var messagingModule = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js");
+      if (messagingModule.isSupported && !(await messagingModule.isSupported())){
+        setMsg("Non disponible sur ce navigateur.");
+        return;
+      }
+      var messaging = messagingModule.getMessaging(app);
+      var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
+      if (!token){
+        setMsg("Impossible d'activer les notifications pour le moment.");
+        return;
+      }
+      await updateDoc(doc(db, 'reservations', reservationId), { clientPushToken: token });
+      var box = document.getElementById('push-optin');
+      if (box) box.innerHTML = '<span style="color:var(--gold-bright);">🔔 Notifications activées — vous serez prévenu(e) dès que votre course sera confirmée.</span>';
+    }catch(err){
+      console.error(err);
+      setMsg("Impossible d'activer les notifications pour le moment.");
     }
   };
 </script>
