@@ -915,6 +915,32 @@
     if (lastRideData) renderRideStatus(id, lastRideData);
   };
 
+  // Annulation par le client lui-même. La règle Firestore n'autorise cette
+  // mise à jour que si elle ne touche que status/cancelReason/cancelledBy
+  // et que le nouveau statut est bien "cancelled" — impossible d'en faire
+  // un autre usage depuis le site public.
+  window.cancelMyRide = async function(id, feeApplies){
+    var warning = feeApplies
+      ? (currentLang === 'en'
+          ? 'Your driver has already accepted this ride — cancelling now means a 20,000 Ar cancellation fee applies. Cancel anyway?'
+          : 'Votre chauffeur a déjà accepté cette course — l’annuler maintenant entraîne des frais d’annulation de 20 000 Ar. Annuler quand même ?')
+      : (currentLang === 'en'
+          ? 'Cancel this ride? It’s free since your driver has not accepted it yet.'
+          : 'Annuler cette course ? C’est gratuit, votre chauffeur ne l’a pas encore acceptée.');
+    if (!confirm(warning)) return;
+    try{
+      await updateDoc(doc(db, 'reservations', id), {
+        status: 'cancelled',
+        cancelReason: currentLang === 'en' ? 'Cancelled by client' : 'Annulée par le client',
+        cancelledBy: 'client'
+      });
+      stopClientLocationSharing(true);
+    }catch(e){
+      console.error('Impossible d\'annuler la course :', e);
+      alert(currentLang === 'en' ? 'Could not cancel your ride right now, please try again.' : "Impossible d'annuler la course pour le moment, réessaie.");
+    }
+  };
+
   function renderRideStatus(id, r){
     lastRideData = r;
     if (!r){ applyRideVisibility(); return; }
@@ -968,9 +994,14 @@
       lines.push('<div style="margin-top:12px;"><button type="button" id="client-location-toggle" style="background:' + (sharingNow ? 'rgba(101,184,137,.15)' : 'var(--gold)') + '; color:' + (sharingNow ? '#8ed3aa' : '#141112') + '; border:none; padding:9px 14px; border-radius:2px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:inherit; width:100%;">' +
         (sharingNow ? (currentLang === 'en' ? '🟢 Sharing my location — Stop' : '🟢 Position partagée — Arrêter') : (currentLang === 'en' ? '📍 Share my location with the driver' : '📍 Partager ma position avec le chauffeur')) +
         '</button></div>');
+      lines.push('<div style="margin-top:8px;"><button type="button" id="client-cancel-ride" style="background:transparent; color:#c0392b; border:1px solid #c0392b; padding:8px 14px; border-radius:2px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:inherit; width:100%;">' +
+        (currentLang === 'en' ? '✕ Cancel my ride' : '✕ Annuler ma course') +
+        '</button></div>');
       lineEl.innerHTML = lines.join('<br>');
       var locToggleBtn = document.getElementById('client-location-toggle');
       if (locToggleBtn) locToggleBtn.onclick = function(){ toggleClientLocationSharing(id); };
+      var cancelBtn = document.getElementById('client-cancel-ride');
+      if (cancelBtn) cancelBtn.onclick = function(){ cancelMyRide(id, r.status === 'confirmed'); };
       if (miniText) miniText.textContent = (currentLang === 'en' ? '🚗 View your ride status' : '🚗 Voir le suivi de ma course') + ' — ' + (isEnRoute ? (currentLang === 'en' ? 'Driver on the way' : 'Chauffeur en route') : rideStatusLabel(r.status));
     }
     applyRideVisibility();
