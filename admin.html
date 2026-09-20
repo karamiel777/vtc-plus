@@ -124,7 +124,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
 .modal-actions{display:flex;gap:10px;margin-top:8px}
 .modal-actions button{flex:1}
 @media(max-width:850px){
-  header{padding:0 18px}.admin-label{display:none}
+  header{padding:0 18px}.admin-label{border-left:0;padding-left:0}.admin-label-text{display:none}
   .stats{grid-template-columns:repeat(2,1fr)}
   .request{grid-template-columns:1fr 1fr}.actions{justify-content:flex-start}
   .cal-day{min-height:52px}
@@ -204,7 +204,7 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
 <header>
   <div class="header-left">
     <img src="logo.jpg" alt="VTC PLUS">
-    <span class="admin-label">ADMINISTRATION <span id="role-pill" class="role-pill">Gérante</span></span>
+    <span class="admin-label"><span class="admin-label-text">ADMINISTRATION</span> <span id="role-pill" class="role-pill">Gérante</span></span>
   </div>
   <div style="display:flex; align-items:center; gap:14px;">
     <button type="button" id="install-app-btn" onclick="installApp()" style="display:none; padding:9px 16px; font-size:12.5px; border-radius:2px; background:transparent; border:1px solid var(--gold); color:var(--gold2); cursor:pointer; font-family:'Manrope',sans-serif; font-weight:600;">📲 Installer l'app</button>
@@ -877,16 +877,25 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
   window.cancelRequest = async function(id){
     var r = requests.find(function(x){ return x.id === id; });
     if (!r) return;
+    // Ouvert tout de suite (avant le prompt() et le await), pour rester dans
+    // la fenêtre d'autorisation du navigateur — voir le commentaire détaillé
+    // sur le même principe dans le gestionnaire de "manage-form".
+    var waWin = (r.phone && r.phone !== "—") ? window.open('', '_blank') : null;
     var reason = prompt("Motif de l'annulation (optionnel, visible par le client) :", "");
-    if (reason === null) return; // la gérante a fermé la fenêtre : on n'annule rien
+    if (reason === null){
+      if (waWin && !waWin.closed) waWin.close();
+      return; // la gérante a fermé la fenêtre : on n'annule rien
+    }
     try{
       await updateDoc(doc(db,"reservations",id), { status:"cancelled", cancelReason: reason || "" });
       if (r.phone && r.phone !== "—"){
         var msg = "Bonjour " + r.name + ", nous sommes désolés : votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") a dû être annulée." + (reason ? " Motif : " + reason + "." : "") + " N'hésitez pas à nous contacter pour plus d'informations.";
-        whatsapp(r.phone, msg);
+        whatsapp(r.phone, msg, waWin);
+        waWin = null;
       }
     }
     catch(e){ console.error(e); alert("Impossible d'annuler cette réservation pour le moment."); }
+    if (waWin && !waWin.closed) waWin.close();
   };
   window.deleteRequest = async function(id){
     if(!confirm("Supprimer définitivement cette réservation ? Cette action est irréversible.")) return;
@@ -918,10 +927,17 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     catch(e){ console.error(e); alert("Seul le compte direction peut supprimer un avis."); }
   };
   window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
-  window.whatsapp = function(phone, message){
+  window.whatsapp = function(phone, message, existingWin){
     var url = "https://wa.me/" + phone.replace(/\D/g,"");
     if (message) url += "?text=" + encodeURIComponent(message);
-    window.open(url, "_blank");
+    // Si un onglet a déjà été ouvert en amont (au moment précis du clic, pour
+    // rester dans la fenêtre d'autorisation du navigateur), on le réutilise
+    // au lieu d'en ouvrir un nouveau — sinon un window.open() classique.
+    if (existingWin && !existingWin.closed){
+      existingWin.location.href = url;
+    } else {
+      window.open(url, "_blank");
+    }
   };
 
   // ---------- Manage reservation (vehicle / payment / notes / status) ----------
@@ -964,8 +980,21 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       return;
     }
     var btn = document.getElementById('manage-submit-btn');
-    btn.disabled = true; btn.textContent = 'Enregistrement…';
     var rBefore = requests.find(function(x){ return x.id === managingId; });
+
+    // On ouvre l'onglet WhatsApp TOUT DE SUITE, en réaction directe au clic
+    // (encore aucun "await" n'a eu lieu) : Safari/Chrome bloquent de plus en
+    // plus systématiquement un window.open() appelé après une attente
+    // réseau, même de quelques centaines de ms, car ils ne le rattachent
+    // plus au clic d'origine. On garde l'onglet ouvert (vide pour l'instant)
+    // et on le remplit une fois l'enregistrement Firestore terminé — s'il
+    // s'avère qu'aucun message n'est nécessaire, on le referme simplement.
+    var waWin = null;
+    if (rBefore && rBefore.phone && rBefore.phone !== '—' && newStatus === 'confirmed'){
+      waWin = window.open('', '_blank');
+    }
+
+    btn.disabled = true; btn.textContent = 'Enregistrement…';
     // Infos véhicule + chauffeur "à plat" sur la réservation elle-même :
     // c'est ce que le client peut lire depuis le site public (suivi de
     // course), qui n'a pas accès aux fiches véhicules/chauffeurs.
@@ -999,7 +1028,8 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
           }
           if (newEta) msg += " Arrivée prévue : " + newEta + ".";
           msg += " Merci de votre confiance.";
-          whatsapp(rBefore.phone, msg);
+          whatsapp(rBefore.phone, msg, waWin);
+          waWin = null; // déjà utilisé, on ne le referme pas plus bas
         }
       }
     }catch(err){
@@ -1007,6 +1037,9 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
       errBox.textContent = "Impossible d'enregistrer ces modifications pour le moment.";
       errBox.style.display = 'block';
     }
+    // Onglet pré-ouvert mais finalement inutile (erreur, ou aucun message à
+    // envoyer) : on le referme au lieu de laisser un onglet vide traîner.
+    if (waWin && !waWin.closed) waWin.close();
     btn.disabled = false; btn.textContent = 'Enregistrer';
   });
 
