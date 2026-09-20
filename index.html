@@ -453,26 +453,6 @@
     ]);
   }
 
-  // Sur ordinateur, quand l'onglet du site est ouvert et au premier plan,
-  // Firebase ne passe PAS par le service worker (qui ne gère que les
-  // notifications reçues app fermée / en arrière-plan) — il faut un
-  // gestionnaire dédié ("foreground") pour afficher quand même une vraie
-  // notification système, sinon rien ne s'affiche à l'écran (juste le son
-  // du suivi en direct qui se met à jour). On ne l'enregistre qu'une fois.
-  var clientForegroundListenerRegistered = false;
-  function registerClientForegroundMessages(mod, messaging){
-    if (clientForegroundListenerRegistered) return;
-    clientForegroundListenerRegistered = true;
-    mod.onMessage(messaging, function(payload){
-      var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
-      var body = (payload.notification && payload.notification.body) || '';
-      try{
-        var n = new Notification(title, { body: body, icon: 'favicon-512.png' });
-        n.onclick = function(){ window.focus(); n.close(); };
-      }catch(e){ console.error('Notification au premier plan impossible :', e); }
-    });
-  }
-
   async function requestClientPush(){
     pushDebugInfo = '';
     if (!('Notification' in window) || !('serviceWorker' in navigator)){
@@ -496,7 +476,6 @@
         return null;
       }
       var messaging = messagingModule.getMessaging(app);
-      registerClientForegroundMessages(messagingModule, messaging);
       var token = await messagingModule.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
       if (!token) pushDebugInfo = 'getToken() a renvoyé un jeton vide.';
       return token || null;

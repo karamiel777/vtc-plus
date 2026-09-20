@@ -1038,26 +1038,6 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
     else btn.textContent = '🔔 Activer les notifications';
   }
 
-  // Sur ordinateur, quand l'onglet admin est ouvert et au premier plan,
-  // Firebase ne passe PAS par le service worker (qui ne gère que les
-  // notifications reçues app fermée / en arrière-plan) — il faut un
-  // gestionnaire dédié ("foreground") pour afficher quand même une vraie
-  // notification système, sinon rien ne s'affiche à l'écran. On ne
-  // l'enregistre qu'une seule fois.
-  var adminForegroundListenerRegistered = false;
-  function registerAdminForegroundMessages(mod, messaging){
-    if (adminForegroundListenerRegistered) return;
-    adminForegroundListenerRegistered = true;
-    mod.onMessage(messaging, function(payload){
-      var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
-      var body = (payload.notification && payload.notification.body) || '';
-      try{
-        var n = new Notification(title, { body: body, icon: 'favicon-512-admin.png' });
-        n.onclick = function(){ window.focus(); n.close(); };
-      }catch(e){ console.error('Notification au premier plan impossible :', e); }
-    });
-  }
-
   window.enablePushNotifications = async function(){
     try{
       if (!('Notification' in window) || !('serviceWorker' in navigator)){
@@ -1084,7 +1064,6 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
         return;
       }
       var messaging = mod.getMessaging(app);
-      registerAdminForegroundMessages(mod, messaging);
       var token = await mod.getToken(messaging, { vapidKey: PUSH_VAPID_KEY, serviceWorkerRegistration: swReg });
       if (token && auth.currentUser){
         await setDoc(doc(db, 'adminDeviceTokens', token), {
