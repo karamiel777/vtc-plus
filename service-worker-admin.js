@@ -30,6 +30,11 @@ messaging.onBackgroundMessage(function (payload) {
     badge: 'favicon-512-admin.png',
     data: payload.data || {}
   };
+  // Si un même envoi arrive deux fois (retransmission réseau, appareil
+  // enregistré deux fois, etc.), ce "tag" fait que la deuxième notification
+  // remplace la première au lieu de s'empiler à côté — une seule bannière
+  // au final, quelle que soit la cause du doublon.
+  if (payload.data && payload.data.tag) options.tag = payload.data.tag;
   self.registration.showNotification(title, options);
 });
 
