@@ -152,6 +152,20 @@
   <div style="max-width:640px; margin:0 auto 56px; text-align:center;">
     <h2 data-i18n="res.title" style="font-size:44px; color:var(--text);">Réserver un trajet</h2>
     <p data-i18n="res.subtitle" style="color:var(--muted); font-size:16px; margin-top:16px; line-height:1.7;">Remplissez ces quelques informations, votre demande part directement sur notre WhatsApp.</p>
+    <a href="#" onclick="openRideHistory(); return false;" data-i18n="res.viewHistory" style="display:inline-block; margin-top:14px; font-size:13px; color:var(--gold-bright); text-decoration:underline;">📖 Voir mes courses précédentes</a>
+  </div>
+
+  <div id="ride-history-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2000; align-items:center; justify-content:center; padding:20px;">
+    <div style="width:100%; max-width:480px; max-height:80vh; overflow-y:auto; background:var(--surface); border:1px solid var(--gold); border-radius:6px; padding:26px 24px; position:relative;">
+      <button type="button" onclick="closeRideHistory()" aria-label="Fermer" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:20px; cursor:pointer;">✕</button>
+      <h3 data-i18n="res.historyTitle" style="font-size:19px; color:var(--text); margin:0 0 12px;">Mes courses précédentes</h3>
+      <p data-i18n="res.historyNote" style="font-size:12.5px; color:var(--muted); line-height:1.6; margin:0 0 16px;">Renseigne le numéro de téléphone utilisé lors de tes réservations.</p>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <input id="history-phone" type="tel" placeholder="Ex : 0344530158" class="form-input" style="flex:1;">
+        <button type="button" onclick="lookupRideHistory()" class="btn btn-gold" style="white-space:nowrap;" data-i18n="res.historySearch">Rechercher</button>
+      </div>
+      <div id="history-results" style="display:flex; flex-direction:column; gap:12px; font-size:13.5px; color:var(--text);"></div>
+    </div>
   </div>
   <div id="reservation-card" style="max-width:640px; margin:0 auto; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:40px; display:flex; flex-direction:column; gap:20px;">
     <div id="welcome-back" style="display:none; padding:12px 16px; background:var(--surface-2); border:1px solid var(--gold); border-radius:2px; font-size:14px;">
@@ -178,11 +192,21 @@
         <label for="f-pickup" data-i18n="res.pickup" style="font-size:12.5px; color:var(--muted);">Lieu de départ</label>
         <input id="f-pickup" type="text" placeholder="Ex : Analakely" data-i18n-placeholder="res.pickupPh" class="form-input" autocomplete="off">
         <div id="f-pickup-suggestions" class="suggestions"></div>
+        <div style="display:flex; gap:6px; margin-top:2px;">
+          <button type="button" onclick="useSavedAddress('f-pickup','home')" title="Utiliser l'adresse Domicile" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">🏠</button>
+          <button type="button" onclick="useSavedAddress('f-pickup','work')" title="Utiliser l'adresse Bureau" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">🏢</button>
+          <button type="button" onclick="saveCurrentAddress('f-pickup')" title="Enregistrer cette adresse" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">💾</button>
+        </div>
       </div>
       <div style="display:flex; flex-direction:column; gap:6px; position:relative;">
         <label for="f-dest" data-i18n="res.dest" style="font-size:12.5px; color:var(--muted);">Destination</label>
         <input id="f-dest" type="text" placeholder="Ex : Ivato Aéroport" data-i18n-placeholder="res.destPh" class="form-input" autocomplete="off">
         <div id="f-dest-suggestions" class="suggestions"></div>
+        <div style="display:flex; gap:6px; margin-top:2px;">
+          <button type="button" onclick="useSavedAddress('f-dest','home')" title="Utiliser l'adresse Domicile" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">🏠</button>
+          <button type="button" onclick="useSavedAddress('f-dest','work')" title="Utiliser l'adresse Bureau" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">🏢</button>
+          <button type="button" onclick="saveCurrentAddress('f-dest')" title="Enregistrer cette adresse" style="background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:2px; padding:4px 8px; font-size:12px; cursor:pointer;">💾</button>
+        </div>
       </div>
     </div>
 
@@ -259,6 +283,15 @@
   <div id="trip-history" style="display:none; max-width:640px; margin:24px auto 0; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:28px 40px;">
     <div data-i18n="res.tripHistory" style="font-weight:600; font-size:14.5px; margin-bottom:14px; color:var(--text);">Vos trajets précédents</div>
     <div id="trip-history-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+  </div>
+</section>
+
+<section id="avis-clients" style="padding:80px 56px; border-bottom:1px solid var(--border);">
+  <div style="max-width:640px; margin:0 auto 40px; text-align:center;">
+    <h2 data-i18n="reviews.title" style="font-size:36px; color:var(--text);">Ce qu'en disent nos clients</h2>
+  </div>
+  <div style="max-width:1100px; margin:0 auto; overflow-x:auto; scroll-snap-type:x mandatory;">
+    <div id="public-reviews-list" style="display:flex; gap:18px; padding:4px 4px 12px;"></div>
   </div>
 </section>
 
@@ -780,6 +813,147 @@
     }catch(e){}
   })();
 
+  // ---------- Adresses favorites (Domicile / Bureau) — enregistrées
+  // uniquement sur cet appareil (pas de compte, aucune donnée envoyée au
+  // serveur). Simple mais suffisant : la plupart des clients réservent
+  // depuis le même téléphone à chaque fois. ----
+  function loadSavedAddresses(){
+    try{
+      return JSON.parse(localStorage.getItem('vtcplus_addresses') || '{}');
+    }catch(e){ return {}; }
+  }
+  function addressLabel(key){
+    if (key === 'home') return currentLang === 'en' ? 'Home' : 'Domicile';
+    if (key === 'work') return currentLang === 'en' ? 'Office' : 'Bureau';
+    return key;
+  }
+  window.useSavedAddress = function(inputId, key){
+    var addr = loadSavedAddresses();
+    var val = addr[key];
+    var input = document.getElementById(inputId);
+    if (!val){
+      alert(currentLang === 'en'
+        ? 'No saved ' + addressLabel(key) + ' address yet. Type it in the field, then tap 💾 to save it.'
+        : "Aucune adresse " + addressLabel(key) + " enregistrée pour l'instant. Renseigne-la dans le champ, puis appuie sur 💾 pour l'enregistrer.");
+      return;
+    }
+    if (input) input.value = val;
+  };
+  window.saveCurrentAddress = function(inputId){
+    var input = document.getElementById(inputId);
+    var val = input ? input.value.trim() : '';
+    if (!val){
+      alert(currentLang === 'en' ? 'Type an address in the field first.' : "Renseigne d'abord une adresse dans le champ.");
+      return;
+    }
+    var isHome = confirm(currentLang === 'en'
+      ? 'Save as Home address? (Cancel = save as Office instead)'
+      : 'Enregistrer comme adresse Domicile ? (Annuler = enregistrer comme Bureau à la place)');
+    var key = isHome ? 'home' : 'work';
+    var addr = loadSavedAddresses();
+    addr[key] = val;
+    try{ localStorage.setItem('vtcplus_addresses', JSON.stringify(addr)); }catch(e){}
+    alert(currentLang === 'en'
+      ? addressLabel(key) + ' address saved: ' + val
+      : 'Adresse ' + addressLabel(key) + ' enregistrée : ' + val);
+  };
+
+  // ---------- Historique des courses par numéro de téléphone (sans compte,
+  // sans mot de passe) — passe par une Cloud Function dédiée qui renvoie
+  // uniquement les courses liées à ce numéro ; aucune requête Firestore
+  // "list" n'est ouverte publiquement. ----
+  var CLOUD_FUNCTIONS_BASE = 'https://us-central1-vtc-plus-a6242.cloudfunctions.net';
+
+  window.openRideHistory = function(){
+    var modal = document.getElementById('ride-history-modal');
+    if (modal) modal.style.display = 'flex';
+  };
+  window.closeRideHistory = function(){
+    var modal = document.getElementById('ride-history-modal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  window.lookupRideHistory = async function(){
+    var phoneInput = document.getElementById('history-phone');
+    var results = document.getElementById('history-results');
+    var phone = phoneInput ? phoneInput.value.trim() : '';
+    if (!results) return;
+    if (!phone){
+      results.innerHTML = '<div style="color:var(--muted);">' +
+        (currentLang === 'en' ? 'Enter your phone number first.' : "Renseigne d'abord ton numéro de téléphone.") +
+        '</div>';
+      return;
+    }
+    results.innerHTML = '<div style="color:var(--muted);">' + (currentLang === 'en' ? 'Searching…' : 'Recherche…') + '</div>';
+    try{
+      var resp = await fetch(CLOUD_FUNCTIONS_BASE + '/getRideHistory?phone=' + encodeURIComponent(phone));
+      var data = await resp.json();
+      if (!resp.ok){
+        results.innerHTML = '<div style="color:#c0392b;">' + escapeHtml(data.error || (currentLang === 'en' ? 'Something went wrong.' : 'Une erreur est survenue.')) + '</div>';
+        return;
+      }
+      var rides = data.rides || [];
+      if (!rides.length){
+        results.innerHTML = '<div style="color:var(--muted);">' +
+          (currentLang === 'en' ? 'No rides found for this number.' : 'Aucune course trouvée pour ce numéro.') +
+          '</div>';
+        return;
+      }
+      var statusLabels = {
+        pending: currentLang === 'en' ? 'Pending' : 'En attente',
+        confirmed: currentLang === 'en' ? 'Confirmed' : 'Confirmée',
+        completed: currentLang === 'en' ? 'Completed' : 'Terminée',
+        cancelled: currentLang === 'en' ? 'Cancelled' : 'Annulée'
+      };
+      results.innerHTML = rides.map(function(r){
+        var statusLabel = statusLabels[r.status] || r.status || '';
+        var ratingLine = r.rating ? ('<div style="color:var(--gold-bright); margin-top:4px;">' + '★'.repeat(r.rating) + '</div>') : '';
+        return '<div style="border:1px solid var(--border); border-radius:4px; padding:12px 14px;">' +
+          '<div style="font-weight:600;">' + escapeHtml(r.pickup) + ' → ' + escapeHtml(r.destination) + '</div>' +
+          '<div style="color:var(--muted); font-size:12.5px; margin-top:3px;">' + escapeHtml(r.date) + (r.time ? (' · ' + escapeHtml(r.time)) : '') + ' · ' + escapeHtml(statusLabel) + '</div>' +
+          ratingLine +
+          '</div>';
+      }).join('');
+    }catch(e){
+      results.innerHTML = '<div style="color:#c0392b;">' + (currentLang === 'en' ? 'Network error. Try again.' : 'Erreur réseau. Réessaie.') + '</div>';
+    }
+  };
+
+  // ---------- Avis publics (témoignages) — chargés depuis une Cloud Function
+  // qui masque le nom et le numéro du client avant tout envoi au site. ----
+  window.loadPublicReviews = async function(){
+    var wrap = document.getElementById('public-reviews-list');
+    if (!wrap) return;
+    try{
+      var resp = await fetch(CLOUD_FUNCTIONS_BASE + '/getPublicReviews');
+      var data = await resp.json();
+      var reviews = (data && data.reviews) || [];
+      if (!reviews.length){
+        wrap.parentElement.style.display = 'none';
+        return;
+      }
+      wrap.innerHTML = reviews.map(function(r){
+        var stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+        var route = (r.pickup && r.destination) ? (escapeHtml(r.pickup) + ' → ' + escapeHtml(r.destination)) : '';
+        return '<div style="min-width:260px; max-width:280px; flex-shrink:0; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:18px 20px; scroll-snap-align:start;">' +
+          '<div style="color:var(--gold-bright); font-size:15px; letter-spacing:1px;">' + stars + '</div>' +
+          (r.comment ? '<div style="margin-top:10px; font-size:13.5px; color:var(--text); line-height:1.6;">“' + escapeHtml(r.comment) + '”</div>' : '') +
+          '<div style="margin-top:12px; font-size:12px; color:var(--muted);">' + escapeHtml(r.initials) + ' · ' + escapeHtml(r.maskedPhone) + '</div>' +
+          (route ? '<div style="margin-top:2px; font-size:11.5px; color:var(--muted);">' + route + '</div>' : '') +
+          '</div>';
+      }).join('');
+    }catch(e){
+      wrap.parentElement.style.display = 'none';
+    }
+  };
+  loadPublicReviews();
+
   window.submitReservation = async function(event) {
     if (event) event.preventDefault();
     var btn = document.getElementById("wa-submit");
@@ -854,6 +1028,11 @@
     'res.title':'Book a ride',
     'res.subtitle':'Fill in a few details below, your request goes straight to our WhatsApp.',
     'res.notMe':"That's not me",
+    'res.viewHistory':'📖 View my previous rides',
+    'res.historyTitle':'My previous rides',
+    'res.historyNote':'Enter the phone number used for your bookings.',
+    'res.historySearch':'Search',
+    'reviews.title':'What our clients say',
     'res.pickup':'Pickup location', 'res.pickupPh':'e.g. Analakely',
     'res.dest':'Destination', 'res.destPh':'e.g. Ivato Airport',
     'res.calcRoute':'Calculate route',
