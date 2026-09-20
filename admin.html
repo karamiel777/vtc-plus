@@ -2526,7 +2526,11 @@ var PUSH_VAPID_KEY = "BEXmjjhAabrbxGI8of2wyKWWXyBc-zbl60ixv0RdKNeykQlyJAoUAxZ9-5
           driverName: v.driverName || "",
           driverPhone: v.driverPhone || "",
           driverProgress: v.driverProgress || "",
-          driverProgressAt: v.driverProgressAt || null
+          driverProgressAt: v.driverProgressAt || null,
+          rating: v.rating || null,
+          ratingComment: v.ratingComment || "",
+          reviewApproved: v.reviewApproved || false,
+          reviewDeleted: v.reviewDeleted || false
         };
       });
       render();
