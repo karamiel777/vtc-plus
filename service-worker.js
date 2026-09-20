@@ -1,10 +1,5 @@
-// Service worker VTC PLUS — mise en cache légère de la coquille de l'app.
-// Les appels en temps réel (Firestore, cartes, géocodage, itinéraires) ne sont
-// JAMAIS mis en cache : ils doivent toujours passer par le réseau.
-//
-// Gère aussi la réception des notifications push (Firebase Cloud Messaging)
-// côté client, pour prévenir quand une course est confirmée — y compris
-// quand l'app est fermée ou le téléphone verrouillé.
+// Service worker VTC PLUS — notifications + ouverture directe de la course.
+
 importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging-compat.js');
 
@@ -19,46 +14,175 @@ firebase.initializeApp({
 
 var messaging = firebase.messaging();
 
-// Notification reçue alors que le site n'est pas au premier plan.
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
 messaging.onBackgroundMessage(function (payload) {
-  // DATA-ONLY push: this service worker is responsible for the one and only
-  // visible notification. The Cloud Function must not send a notification
-  // payload at the same time, otherwise FCM/browser may display a duplicate.
-  var title = (payload.data && payload.data.title) || (payload.notification && payload.notification.title) || 'VTC PLUS';
+
+  var title =
+    (payload.data && payload.data.title) ||
+    (payload.notification && payload.notification.title) ||
+    'VTC PLUS';
+
   var options = {
-    body: (payload.data && payload.data.body) || (payload.notification && payload.notification.body) || '',
+    body:
+      (payload.data && payload.data.body) ||
+      (payload.notification && payload.notification.body) ||
+      '',
+
     icon: 'favicon-512.png',
     badge: 'favicon-512.png',
+
+    // Très important :
+    // on garde les données de la notification,
+    // notamment reservationId.
     data: payload.data || {}
   };
-  // Si un même envoi arrive deux fois (retransmission réseau, appareil
-  // enregistré deux fois, etc.), ce "tag" fait que la deuxième notification
-  // remplace la première au lieu de s'empiler à côté — une seule bannière
-  // au final, quelle que soit la cause du doublon.
-  if (payload.data && payload.data.tag) options.tag = payload.data.tag;
+
+  if (payload.data && payload.data.tag) {
+    options.tag = payload.data.tag;
+  }
+
   self.registration.showNotification(title, options);
 });
 
-// Un tap sur la notification ramène (ou ouvre) le site. On utilise une URL
-// absolue (basée sur la portée du service worker) plutôt qu'un simple
-// "index.html" relatif : un chemin relatif peut échouer à s'ouvrir selon le
-// contexte d'où part le clic, et amener sur un onglet vide.
+
+// ============================================================
+// CLIC SUR LA NOTIFICATION
+// ============================================================
+
 self.addEventListener('notificationclick', function (event) {
+
   event.notification.close();
-  var targetUrl = new URL('index.html', self.registration.scope).href;
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (var i = 0; i < clientList.length; i++) {
-        if (clientList[i].url.indexOf('index.html') !== -1 && 'focus' in clientList[i]) {
-          return clientList[i].focus();
-        }
-      }
-      if (clients.openWindow) return clients.openWindow(targetUrl);
-    })
+
+  var data = event.notification.data || {};
+
+  // ID de la réservation envoyé par Firebase
+  var reservationId = data.reservationId || '';
+
+  // URL de la page client
+  var targetUrl = new URL(
+    'index.html',
+    self.registration.scope
   );
+
+  // On ajoute l'ID de la course dans l'URL
+  //
+  // Exemple :
+  // index.html?ride=ABC123
+  //
+  if (reservationId) {
+    targetUrl.searchParams.set(
+      'ride',
+      reservationId
+    );
+  }
+
+  var targetHref = targetUrl.href;
+
+
+  event.waitUntil(
+
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    })
+
+    .then(function (clientList) {
+
+      // ========================================================
+      // UN ONGLET VTC PLUS EST DÉJÀ OUVERT
+      // ========================================================
+
+      for (var i = 0; i < clientList.length; i++) {
+
+        var client = clientList[i];
+
+        if (
+          client.url.indexOf('index.html') !== -1
+        ) {
+
+          // Si on connaît la réservation,
+          // on recharge l'onglet avec ?ride=ID
+          if (
+            reservationId &&
+            'navigate' in client
+          ) {
+
+            return client
+              .navigate(targetHref)
+              .then(function (newClient) {
+
+                var focusedClient =
+                  newClient || client;
+
+                if (
+                  'focus' in focusedClient
+                ) {
+                  return focusedClient.focus();
+                }
+
+                return focusedClient;
+              });
+          }
+
+
+          // Sinon on se contente de ramener
+          // l'onglet au premier plan.
+          if ('focus' in client) {
+
+            return client.focus().then(function () {
+
+              // On envoie également l'ID
+              // directement à la page.
+              if (
+                reservationId &&
+                'postMessage' in client
+              ) {
+
+                client.postMessage({
+                  type: 'OPEN_RIDE',
+                  reservationId: reservationId
+                });
+
+              }
+
+            });
+
+          }
+
+        }
+
+      }
+
+
+      // ========================================================
+      // AUCUN ONGLET OUVERT
+      // ========================================================
+
+      if (clients.openWindow) {
+
+        return clients.openWindow(
+          targetHref
+        );
+
+      }
+
+    })
+
+  );
+
 });
 
-var CACHE_NAME = 'vtcplus-v1';
+
+// ============================================================
+// CACHE
+// ============================================================
+
+var CACHE_NAME = 'vtcplus-v2';
+
 var APP_SHELL = [
   './',
   './index.html',
@@ -66,47 +190,171 @@ var APP_SHELL = [
   './favicon-512.png'
 ];
 
+
+// ============================================================
+// INSTALLATION
+// ============================================================
+
 self.addEventListener('install', function (event) {
+
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(APP_SHELL).catch(function () { /* un fichier manquant ne doit pas bloquer l'install */ });
-    })
+
+    caches
+      .open(CACHE_NAME)
+      .then(function (cache) {
+
+        return cache
+          .addAll(APP_SHELL)
+          .catch(function () {
+
+            // Un fichier manquant ne doit pas
+            // empêcher le service worker de s'installer.
+
+          });
+
+      })
+
   );
+
   self.skipWaiting();
+
 });
+
+
+// ============================================================
+// ACTIVATION
+// ============================================================
 
 self.addEventListener('activate', function (event) {
+
   event.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.filter(function (k) { return k !== CACHE_NAME; })
-            .map(function (k) { return caches.delete(k); })
-      );
-    })
+
+    caches
+      .keys()
+      .then(function (keys) {
+
+        return Promise.all(
+
+          keys
+            .filter(function (key) {
+
+              return key !== CACHE_NAME;
+
+            })
+
+            .map(function (key) {
+
+              return caches.delete(key);
+
+            })
+
+        );
+
+      })
+
   );
+
   self.clients.claim();
+
 });
 
+
+// ============================================================
+// REQUÊTES QUI NE DOIVENT JAMAIS ÊTRE MISES EN CACHE
+// ============================================================
+
 var BYPASS_PATTERNS = [
-  'googleapis', 'firestore', 'firebasestorage', 'nominatim.openstreetmap.org',
-  'photon.komoot.io', 'router.project-osrm.org', 'tile.openstreetmap.org', 'wa.me'
+
+  'googleapis',
+  'firestore',
+  'firebasestorage',
+
+  'nominatim.openstreetmap.org',
+
+  'photon.komoot.io',
+
+  'router.project-osrm.org',
+
+  'tile.openstreetmap.org',
+
+  'wa.me'
+
 ];
 
+
+// ============================================================
+// FETCH
+// ============================================================
+
 self.addEventListener('fetch', function (event) {
+
   var req = event.request;
-  if (req.method !== 'GET') return;
-  if (BYPASS_PATTERNS.some(function (p) { return req.url.indexOf(p) !== -1; })) return;
+
+  if (req.method !== 'GET') {
+    return;
+  }
+
+
+  if (
+    BYPASS_PATTERNS.some(function (pattern) {
+
+      return req.url.indexOf(pattern) !== -1;
+
+    })
+  ) {
+
+    return;
+
+  }
+
 
   event.respondWith(
-    caches.match(req).then(function (cached) {
-      var networkFetch = fetch(req).then(function (res) {
-        if (res && res.ok) {
-          var resClone = res.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(req, resClone); });
-        }
-        return res;
-      }).catch(function () { return cached; });
-      return cached || networkFetch;
-    })
+
+    caches
+      .match(req)
+
+      .then(function (cached) {
+
+        var networkFetch = fetch(req)
+
+          .then(function (response) {
+
+            if (
+              response &&
+              response.ok
+            ) {
+
+              var responseClone =
+                response.clone();
+
+              caches
+                .open(CACHE_NAME)
+                .then(function (cache) {
+
+                  cache.put(
+                    req,
+                    responseClone
+                  );
+
+                });
+
+            }
+
+            return response;
+
+          })
+
+          .catch(function () {
+
+            return cached;
+
+          });
+
+
+        return cached || networkFetch;
+
+      })
+
   );
+
 });
