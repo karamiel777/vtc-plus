@@ -153,6 +153,8 @@
     <h2 data-i18n="res.title" style="font-size:44px; color:var(--text);">Réserver un trajet</h2>
     <p data-i18n="res.subtitle" style="color:var(--muted); font-size:16px; margin-top:16px; line-height:1.7;">Remplissez ces quelques informations, votre demande part directement sur notre WhatsApp.</p>
     <a href="#" onclick="openRideHistory(); return false;" data-i18n="res.viewHistory" style="display:inline-block; margin-top:14px; font-size:13px; color:var(--gold-bright); text-decoration:underline;">📖 Voir mes courses précédentes</a>
+    <span style="display:inline-block; margin:0 8px; color:var(--muted); font-size:13px;">·</span>
+    <a href="#" onclick="openAddressManager(); return false;" data-i18n="res.manageAddrs" style="display:inline-block; margin-top:14px; font-size:13px; color:var(--gold-bright); text-decoration:underline;">⚙️ Gérer mes adresses</a>
   </div>
 
   <div id="ride-history-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2000; align-items:center; justify-content:center; padding:20px;">
@@ -165,6 +167,15 @@
         <button type="button" onclick="lookupRideHistory()" class="btn btn-gold" style="white-space:nowrap;" data-i18n="res.historySearch">Rechercher</button>
       </div>
       <div id="history-results" style="display:flex; flex-direction:column; gap:12px; font-size:13.5px; color:var(--text);"></div>
+    </div>
+  </div>
+
+  <div id="addr-manage-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2000; align-items:center; justify-content:center; padding:20px;">
+    <div style="width:100%; max-width:440px; max-height:80vh; overflow-y:auto; background:var(--surface); border:1px solid var(--gold); border-radius:6px; padding:26px 24px; position:relative;">
+      <button type="button" onclick="closeAddressManager()" aria-label="Fermer" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:20px; cursor:pointer;">✕</button>
+      <h3 data-i18n="res.manageAddrsTitle" style="font-size:19px; color:var(--text); margin:0 0 12px;">Mes adresses favorites</h3>
+      <p data-i18n="res.manageAddrsNote" style="font-size:12.5px; color:var(--muted); line-height:1.6; margin:0 0 16px;">Enregistrées uniquement sur cet appareil.</p>
+      <div id="addr-manage-list" style="display:flex; flex-direction:column; gap:10px; font-size:13.5px; color:var(--text);"></div>
     </div>
   </div>
   <div id="reservation-card" style="max-width:640px; margin:0 auto; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:40px; display:flex; flex-direction:column; gap:20px;">
@@ -856,6 +867,68 @@
     alert(currentLang === 'en'
       ? addressLabel(key) + ' address saved: ' + val
       : 'Adresse ' + addressLabel(key) + ' enregistrée : ' + val);
+    renderAddressManager();
+  };
+
+  function renderAddressManager(){
+    var list = document.getElementById('addr-manage-list');
+    if (!list) return;
+    var addr = loadSavedAddresses();
+    list.innerHTML = ['home','work'].map(function(key){
+      var val = addr[key];
+      var label = addressLabel(key);
+      var icon = key === 'home' ? '🏠' : '🏢';
+      var valueLine = val
+        ? '<div style="color:var(--muted); font-size:12.5px; margin-top:2px; word-break:break-word;">' + escapeHtml(val) + '</div>'
+        : '<div style="color:var(--muted); font-size:12.5px; margin-top:2px; font-style:italic;">' +
+          (currentLang === 'en' ? 'Not saved yet' : 'Non enregistrée') + '</div>';
+      var actions = val
+        ? '<div style="display:flex; gap:14px; margin-top:8px;">' +
+          '<a href="#" onclick="editSavedAddress(\'' + key + '\'); return false;" style="font-size:12.5px; color:var(--gold-bright); text-decoration:underline;">✏️ ' + (currentLang === 'en' ? 'Edit' : 'Modifier') + '</a>' +
+          '<a href="#" onclick="deleteSavedAddress(\'' + key + '\'); return false;" style="font-size:12.5px; color:#c0392b; text-decoration:underline;">🗑️ ' + (currentLang === 'en' ? 'Delete' : 'Supprimer') + '</a>' +
+          '</div>'
+        : '';
+      return '<div style="border:1px solid var(--border); border-radius:4px; padding:12px 14px;">' +
+        '<div style="font-weight:600;">' + icon + ' ' + escapeHtml(label) + '</div>' +
+        valueLine + actions +
+        '</div>';
+    }).join('');
+  }
+
+  window.openAddressManager = function(){
+    renderAddressManager();
+    var modal = document.getElementById('addr-manage-modal');
+    if (modal) modal.style.display = 'flex';
+  };
+  window.closeAddressManager = function(){
+    var modal = document.getElementById('addr-manage-modal');
+    if (modal) modal.style.display = 'none';
+  };
+  window.editSavedAddress = function(key){
+    var addr = loadSavedAddresses();
+    var current = addr[key] || '';
+    var next = prompt(currentLang === 'en'
+      ? 'Edit ' + addressLabel(key) + ' address:'
+      : 'Modifier l’adresse ' + addressLabel(key) + ' :', current);
+    if (next === null) return;
+    next = next.trim();
+    if (!next){
+      alert(currentLang === 'en' ? 'Address cannot be empty.' : "L'adresse ne peut pas être vide.");
+      return;
+    }
+    addr[key] = next;
+    try{ localStorage.setItem('vtcplus_addresses', JSON.stringify(addr)); }catch(e){}
+    renderAddressManager();
+  };
+  window.deleteSavedAddress = function(key){
+    var ok = confirm(currentLang === 'en'
+      ? 'Delete the saved ' + addressLabel(key) + ' address?'
+      : 'Supprimer l’adresse ' + addressLabel(key) + ' enregistrée ?');
+    if (!ok) return;
+    var addr = loadSavedAddresses();
+    delete addr[key];
+    try{ localStorage.setItem('vtcplus_addresses', JSON.stringify(addr)); }catch(e){}
+    renderAddressManager();
   };
 
   // ---------- Historique des courses par numéro de téléphone (sans compte,
@@ -1033,6 +1106,9 @@
     'res.historyNote':'Enter the phone number used for your bookings.',
     'res.historySearch':'Search',
     'reviews.title':'What our clients say',
+    'res.manageAddrs':'⚙️ Manage my addresses',
+    'res.manageAddrsTitle':'My favourite addresses',
+    'res.manageAddrsNote':'Saved on this device only.',
     'res.pickup':'Pickup location', 'res.pickupPh':'e.g. Analakely',
     'res.dest':'Destination', 'res.destPh':'e.g. Ivato Airport',
     'res.calcRoute':'Calculate route',
