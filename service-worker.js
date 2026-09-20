@@ -21,9 +21,12 @@ var messaging = firebase.messaging();
 
 // Notification reçue alors que le site n'est pas au premier plan.
 messaging.onBackgroundMessage(function (payload) {
-  var title = (payload.notification && payload.notification.title) || 'VTC PLUS';
+  // DATA-ONLY push: this service worker is responsible for the one and only
+  // visible notification. The Cloud Function must not send a notification
+  // payload at the same time, otherwise FCM/browser may display a duplicate.
+  var title = (payload.data && payload.data.title) || (payload.notification && payload.notification.title) || 'VTC PLUS';
   var options = {
-    body: (payload.notification && payload.notification.body) || '',
+    body: (payload.data && payload.data.body) || (payload.notification && payload.notification.body) || '',
     icon: 'favicon-512.png',
     badge: 'favicon-512.png',
     data: payload.data || {}
