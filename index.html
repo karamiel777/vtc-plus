@@ -70,6 +70,186 @@
   .lang-toggle{display:flex; border:1px solid var(--border); border-radius:99px; overflow:hidden; flex-shrink:0;}
   .lang-toggle button{background:transparent; border:none; color:var(--muted); font-size:12px; font-weight:700; padding:7px 12px; cursor:pointer;}
   .lang-toggle button.active{background:var(--gold); color:#141112;}
+
+  /* VTC PLUS — homepage hero + booking form. Existing booking/JS logic untouched. */
+  #hero-booking-column #reservation{padding:0 !important; margin:0 !important; background:transparent !important; border:0 !important;}
+  #hero-booking-column #reservation-intro{display:none;}
+  #hero-booking-column #reservation-card{max-width:none !important; width:100%; margin:0 !important; padding:30px !important; box-shadow:0 24px 70px rgba(0,0,0,.45); border-color:rgba(201,164,92,.55) !important;}
+  #hero-booking-column #ride-status-card, #hero-booking-column #ride-status-mini{max-width:none !important;}
+  #hero-booking-column #trip-history{display:none !important;}
+  @media (max-width:980px){
+    #hero{min-height:auto !important; padding:54px 28px 72px !important; align-items:stretch !important;}
+    #hero-inner{display:flex !important; flex-direction:column !important; gap:34px !important;}
+    #hero-copy{max-width:680px !important; padding:0 !important;}
+    #hero h1{font-size:50px !important;}
+    #hero-booking-column #reservation-card{padding:28px !important;}
+    #hero-booking-column #reservation-intro{display:none !important;}
+  }
+  @media (max-width:640px){
+    #hero{padding:42px 18px 60px !important;}
+    #hero h1{font-size:42px !important;}
+    #hero p{max-width:100% !important;}
+    #hero-booking-column #reservation-card{padding:22px 18px !important;}
+  }
+
+  /* VTC PLUS — V2 mobile booking hero inspired by premium chauffeur UX. */
+  @media (max-width:640px){
+    /* Let the navigation sit over the hero, like the reference mobile layout. */
+    #sticky-top-wrap{position:absolute !important; top:0 !important; left:0 !important; right:0 !important; width:100% !important;}
+    #sticky-top-wrap header{background:linear-gradient(180deg, rgba(8,9,11,.62), rgba(8,9,11,0)) !important; border-bottom:0 !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;}
+    /* Let the hero feel like one continuous first-screen experience. */
+    #hero{
+      min-height:calc(100svh - 0px) !important;
+      padding:92px 16px 28px !important;
+      align-items:flex-start !important;
+      background-image:linear-gradient(180deg, rgba(8,9,11,.42) 0%, rgba(8,9,11,.52) 25%, rgba(8,9,11,.78) 52%, rgba(8,9,11,.96) 100%), url('hero.jpg') !important;
+      background-position:center top !important;
+      background-size:cover !important;
+    }
+    #hero-inner{
+      width:100% !important;
+      max-width:none !important;
+      gap:22px !important;
+    }
+    #hero-copy{
+      width:100% !important;
+      max-width:none !important;
+      gap:10px !important;
+      padding:0 4px !important;
+    }
+    #hero h1{
+      font-size:38px !important;
+      line-height:1.02 !important;
+      max-width:330px !important;
+      text-shadow:0 2px 18px rgba(0,0,0,.45);
+    }
+    #hero-copy [data-i18n="hero.tagline"]{
+      font-size:22px !important;
+      margin-top:2px !important;
+    }
+    #hero-copy [data-i18n="hero.subtitle"]{
+      font-size:13px !important;
+      line-height:1.5 !important;
+      max-width:330px !important;
+      display:-webkit-box !important;
+      -webkit-line-clamp:2 !important;
+      -webkit-box-orient:vertical !important;
+      overflow:hidden !important;
+    }
+    #hero-copy > div:last-child{
+      display:none !important;
+    }
+
+    /* Compact glass booking card, like the reference: inputs first, no giant section padding. */
+    #hero-booking-column{
+      width:100% !important;
+    }
+    #hero-booking-column #reservation{
+      width:100% !important;
+    }
+    #hero-booking-column #reservation-card{
+      width:100% !important;
+      padding:18px 16px !important;
+      border-radius:18px !important;
+      background:rgba(25,25,28,.68) !important;
+      border:1px solid rgba(255,255,255,.34) !important;
+      box-shadow:0 18px 50px rgba(0,0,0,.38) !important;
+      backdrop-filter:blur(16px) !important;
+      -webkit-backdrop-filter:blur(16px) !important;
+      gap:13px !important;
+    }
+    #hero-booking-column #reservation-intro{
+      display:none !important;
+    }
+    #hero-booking-column #step-trip{
+      gap:13px !important;
+    }
+    #hero-booking-column #step-trip > div:first-child{
+      margin-bottom:0 !important;
+    }
+    #hero-booking-column #tier-comfort,
+    #hero-booking-column #tier-premium{
+      padding:10px 8px !important;
+      font-size:13px !important;
+    }
+    #hero-booking-column #tier-preview-img,
+    #hero-booking-column #tier-preview-label,
+    #hero-booking-column [data-i18n="res.tierPreviewNote"]{
+      display:none !important;
+    }
+    #hero-booking-column #tier-preview-img + div{
+      display:none !important;
+    }
+    #hero-booking-column #tier-preview-img{
+      width:0 !important;
+      padding:0 !important;
+      margin:0 !important;
+    }
+    #hero-booking-column #tier-preview-img + div{display:none !important;}
+    #hero-booking-column #tier-preview-img ~ *{display:none !important;}
+    #hero-booking-column #reservation-card > #step-trip > div:nth-child(2){
+      min-height:0 !important;
+      padding:0 !important;
+      background:transparent !important;
+      border:0 !important;
+    }
+    #hero-booking-column #reservation-card > #step-trip > div:nth-child(2) > div{
+      display:none !important;
+    }
+    #hero-booking-column #reservation-card > #step-trip > div:nth-child(3){
+      display:grid !important;
+      grid-template-columns:1fr !important;
+      gap:0 !important;
+    }
+    #hero-booking-column #reservation-card > #step-trip > div:nth-child(3) > div{
+      border-bottom:1px solid rgba(255,255,255,.28);
+      padding:3px 0 2px;
+    }
+    #hero-booking-column #reservation-card label{
+      font-size:11px !important;
+      color:rgba(255,255,255,.72) !important;
+      margin-bottom:1px !important;
+    }
+    #hero-booking-column #reservation-card .form-input{
+      border:0 !important;
+      background:transparent !important;
+      padding:5px 0 8px !important;
+      font-size:16px !important;
+      color:#fff !important;
+      border-radius:0 !important;
+      width:100% !important;
+    }
+    #hero-booking-column #reservation-card .form-input::placeholder{
+      color:rgba(255,255,255,.48) !important;
+    }
+    #hero-booking-column #reservation-card > #step-trip > #route-btn{
+      margin-top:4px !important;
+      min-height:50px !important;
+      border-radius:26px !important;
+      background:var(--gold) !important;
+      border-color:var(--gold) !important;
+      color:#141112 !important;
+      font-size:15px !important;
+      box-shadow:none !important;
+    }
+    #hero-booking-column #route-map,
+    #hero-booking-column #map-hint,
+    #hero-booking-column #route-result,
+    #hero-booking-column #estimate-box,
+    #hero-booking-column #estimate-note,
+    #hero-booking-column #out-of-zone-link{
+      border-radius:10px !important;
+    }
+    #hero-booking-column #locate-btn{display:none !important;}
+    #hero-booking-column #continue-btn{border-radius:26px !important; min-height:48px !important;}
+    #hero-booking-column #ride-status-card,
+    #hero-booking-column #ride-status-mini,
+    #hero-booking-column #trip-history{display:none !important;}
+
+    /* Keep the second, full reservation section from creating a duplicate-looking block below. */
+    body > #reservation{display:none !important;}
+  }
+
 </style>
 </head>
 <body>
@@ -123,19 +303,16 @@
   <a href="#reservation" data-i18n="nav.book" class="btn btn-gold" style="justify-content:center; margin-top:18px;" onclick="toggleMobileNav()">Réserver</a>
 </div>
 
-<section id="hero" style="position:relative; min-height:700px; display:flex; align-items:center; padding:0 56px; border-bottom:1px solid var(--border); background-image:linear-gradient(90deg, rgba(11,11,12,0.94) 0%, rgba(11,11,12,0.75) 45%, rgba(11,11,12,0.35) 100%), url('hero.jpg'); background-size:cover; background-position:center;">
-  <div style="max-width:680px; display:flex; flex-direction:column; gap:28px; padding:80px 0;">
-    <h1 data-i18n="hero.title" style="font-size:60px; line-height:1.08; color:var(--text);">Voyagez comme un VIP à Antananarivo.</h1>
-    <p data-i18n="hero.tagline" style="font-family:'Cormorant Garamond', serif; font-style:italic; font-size:26px; color:var(--gold-bright); margin:0;">Plus qu'un trajet…</p>
-    <p data-i18n="hero.subtitle" style="font-size:17px; line-height:1.7; color:var(--muted); max-width:520px; margin:0;">VTC PLUS habille vos déplacements de confort, de ponctualité et d'élégance — la référence du transport privé haut de gamme à Madagascar. Deux formules, un seul standard : l'excellence.</p>
-    <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
-      <a href="#reservation" data-i18n="hero.cta1" class="btn btn-gold">Réserver un trajet</a>
-      <a href="#contact" data-i18n="hero.cta2" class="btn btn-outline">Devenir chauffeur partenaire</a>
+<section id="hero" style="position:relative; min-height:760px; display:flex; align-items:center; padding:72px 56px; border-bottom:1px solid var(--border); background-image:linear-gradient(90deg, rgba(11,11,12,0.96) 0%, rgba(11,11,12,0.86) 42%, rgba(11,11,12,0.68) 72%, rgba(11,11,12,0.58) 100%), url('hero.jpg'); background-size:cover; background-position:center;">
+  <div id="hero-inner" style="width:100%; max-width:1240px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(480px,560px); gap:54px; align-items:center;">
+    <div id="hero-copy" style="max-width:680px; display:flex; flex-direction:column; gap:28px;">
+      <h1 data-i18n="hero.title" style="font-size:60px; line-height:1.08; color:var(--text);">Voyagez comme un VIP à Antananarivo.</h1>
+      <p data-i18n="hero.tagline" style="font-family:'Cormorant Garamond', serif; font-style:italic; font-size:26px; color:var(--gold-bright); margin:0;">Plus qu'un trajet…</p>
+      <!-- Hero volontairement minimal : le titre et la signature restent seuls. -->
     </div>
-  </div>
-</section>
 
-<section id="reservation" style="padding:100px 56px; border-bottom:1px solid var(--border); background:var(--surface-2);">
+    <div id="hero-booking-column">
+      <section id="reservation" style="padding:100px 56px; border-bottom:1px solid var(--border); background:var(--surface-2);">
 
   <div id="ride-status-card" style="display:none; max-width:640px; margin:0 auto 32px; background:var(--surface); border:1px solid var(--gold); border-radius:4px; padding:24px 28px; position:relative;">
     <button type="button" onclick="hideRideStatus()" aria-label="Réduire" title="Réduire (tu pourras la rouvrir)" style="position:absolute; top:10px; right:10px; background:transparent; border:none; color:var(--muted); font-size:18px; cursor:pointer; line-height:1; padding:4px;">✕</button>
@@ -149,7 +326,7 @@
     <span style="color:var(--gold-bright);">→</span>
   </button>
 
-  <div style="max-width:640px; margin:0 auto 56px; text-align:center;">
+  <div id="reservation-intro" style="max-width:640px; margin:0 auto 56px; text-align:center;">
     <h2 data-i18n="res.title" style="font-size:44px; color:var(--text);">Réserver un trajet</h2>
     <p data-i18n="res.subtitle" style="color:var(--muted); font-size:16px; margin-top:16px; line-height:1.7;">Remplissez ces quelques informations, votre demande part directement sur notre WhatsApp.</p>
     <a href="#" onclick="openRideHistory(); return false;" data-i18n="res.viewHistory" style="display:inline-block; margin-top:14px; font-size:13px; color:var(--gold-bright); text-decoration:underline;">📖 Voir mes courses précédentes</a>
@@ -294,6 +471,9 @@
   <div id="trip-history" style="display:none; max-width:640px; margin:24px auto 0; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:28px 40px;">
     <div data-i18n="res.tripHistory" style="font-weight:600; font-size:14.5px; margin-bottom:14px; color:var(--text);">Vos trajets précédents</div>
     <div id="trip-history-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+  </div>
+</section>
+    </div>
   </div>
 </section>
 
