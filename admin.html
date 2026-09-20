@@ -835,6 +835,14 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
         <div><small>FORMULE</small><strong>${r.tier}</strong></div>
         <div><small>SOURCE</small><span class="source-tag">${SOURCE_LABEL[r.source]||"Site web"}</span></div>
         <div><small>MONTANT</small><strong>${r.estimate}</strong><br><span class="status ${r.status}">${labelStatus(r.status)}</span></div>
+        ${(r.rating && !r.reviewDeleted)?`<div style="grid-column:1/-1; margin-top:6px; padding-top:8px; border-top:1px dashed var(--border);">
+          <small>AVIS CLIENT</small><br>
+          <span style="color:#d4af37; letter-spacing:1px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+          ${r.ratingComment?` — <span style="color:var(--muted);">${r.ratingComment}</span>`:""}
+          <span class="source-tag" style="margin-left:8px;">${r.reviewApproved?"🌐 Public":"🔒 Masqué"}</span>
+          ${isDirector?`<button onclick="toggleReviewVisibility('${r.id}', ${!!r.reviewApproved})" style="margin-left:8px;" title="${r.reviewApproved?'Retirer du site public':'Afficher sur le site public'}">${r.reviewApproved?"🙈 Masquer":"👁 Afficher"}</button>`:""}
+          ${isDirector?`<button class="danger" onclick="deleteReview('${r.id}')" style="margin-left:4px;" title="Supprimer définitivement cet avis">🗑</button>`:""}
+        </div>`:""}
         <div class="actions">
           <button onclick="callClient('${r.phone}')">📞</button>
           <button onclick="whatsapp('${r.phone}')">💬</button>
@@ -884,6 +892,30 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     if(!confirm("Supprimer définitivement cette réservation ? Cette action est irréversible.")) return;
     try{ await deleteDoc(doc(db,"reservations",id)); }
     catch(e){ console.error(e); alert("Seul le compte direction peut supprimer une réservation."); }
+  };
+  // Seule la direction peut décider quels avis clients apparaissent
+  // publiquement sur le site (section "Ce qu'en disent nos clients").
+  // La Cloud Function getPublicReviews ne renvoie que les avis avec
+  // reviewApproved === true.
+  window.toggleReviewVisibility = async function(id, currentlyApproved){
+    if (!isDirector) return;
+    try{
+      await updateDoc(doc(db,"reservations",id), { reviewApproved: !currentlyApproved });
+    }
+    catch(e){ console.error(e); alert("Seul le compte direction peut modifier la visibilité d'un avis."); }
+  };
+  // Supprime l'avis (note + commentaire) sans toucher au reste de la
+  // réservation. On ne peut pas supprimer le champ rating lui-même avec les
+  // règles Firestore actuelles (elles limitent l'update à des champs
+  // précis) : on marque simplement reviewDeleted, ce qui le fait disparaître
+  // de l'admin comme du site public.
+  window.deleteReview = async function(id){
+    if (!isDirector) return;
+    if (!confirm("Supprimer définitivement cet avis ? Il ne sera plus visible nulle part.")) return;
+    try{
+      await updateDoc(doc(db,"reservations",id), { reviewDeleted: true, reviewApproved: false });
+    }
+    catch(e){ console.error(e); alert("Seul le compte direction peut supprimer un avis."); }
   };
   window.callClient = function(phone){ window.location.href="tel:"+phone.replace(/\s/g,""); };
   window.whatsapp = function(phone, message){
