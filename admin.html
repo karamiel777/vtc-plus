@@ -889,7 +889,17 @@ body:has(.modal-overlay.show){overflow:hidden;height:100%}
     try{
       await updateDoc(doc(db,"reservations",id), { status:"cancelled", cancelReason: reason || "" });
       if (r.phone && r.phone !== "—"){
-        var msg = "Bonjour " + r.name + ", nous sommes désolés : votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") a dû être annulée." + (reason ? " Motif : " + reason + "." : "") + " N'hésitez pas à nous contacter pour plus d'informations.";
+        // Frais d'annulation : gratuit si le chauffeur n'avait pas encore
+        // accepté (statut autre que "confirmed"), 20 000 Ar sinon — la
+        // politique est aussi affichée sur le site public avant l'envoi de
+        // la demande.
+        var msg = "Bonjour " + r.name + ", votre réservation VTC PLUS du " + isoToDisplay(r.date) + (r.time ? " à " + r.time : "") + " (" + r.pickup + " → " + r.dest + ") a été annulée." + (reason ? " Motif : " + reason + "." : "");
+        if (r.status === "confirmed"){
+          msg += " Le chauffeur ayant déjà accepté la course, des frais d'annulation de 20 000 Ar s'appliquent.";
+        } else {
+          msg += " Aucun frais ne s'applique, le chauffeur n'ayant pas encore accepté la course.";
+        }
+        msg += " N'hésitez pas à nous contacter pour plus d'informations.";
         whatsapp(r.phone, msg, waWin);
         waWin = null;
       }
