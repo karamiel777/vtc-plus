@@ -508,7 +508,15 @@
       return null;
     }
     try{
-      var perm = await Notification.requestPermission();
+      // Si la permission est déjà accordée (visite précédente), on NE LA
+      // REDEMANDE PAS : sur iPhone, un appel à requestPermission() sans
+      // vrai tap peut renvoyer autre chose que "granted" même quand la
+      // permission réelle est toujours bonne — ça forçait l'utilisateur à
+      // re-cliquer "Réessayer" à chaque rechargement de page pour rien.
+      var perm = Notification.permission;
+      if (perm !== 'granted'){
+        perm = await Notification.requestPermission();
+      }
       if (perm !== 'granted'){
         pushDebugInfo = 'Permission non accordée (' + perm + ').';
         return null;
